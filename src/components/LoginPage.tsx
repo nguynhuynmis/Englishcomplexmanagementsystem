@@ -1,18 +1,47 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { User, UserRole } from '../App';
-import { GraduationCap } from 'lucide-react';
+import { students, teachers, academicStaff, directors } from '../data/mockData';
+import logoHorizontal from 'figma:asset/dd0c38c752428dd137a2714c0bfc56ea8f160c00.png';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
 }
 
-// Mock users for demo
-const mockUsers = [
-  { id: '1', username: 'hocvu01', password: 'hocvu123', fullName: 'Nguyễn Văn A', role: 'academic' as UserRole },
-  { id: '2', username: 'gv01', password: 'gv123', fullName: 'Trần Thị B', role: 'teacher' as UserRole },
-  { id: '3', username: 'hv01', password: 'hv123', fullName: 'Lê Văn C', role: 'student' as UserRole },
-  { id: '4', username: 'gd01', password: 'gd123', fullName: 'Phạm Thị D', role: 'director' as UserRole },
-];
+// Mock users mapping from data
+const getAllUsers = () => {
+  const allUsers: any[] = [];
+  
+  // Add students
+  students.forEach(s => allUsers.push({
+    ...s,
+    role: 'student' as UserRole,
+    password: s.username // password same as username for demo
+  }));
+  
+  // Add teachers
+  teachers.forEach(t => allUsers.push({
+    ...t,
+    role: 'teacher' as UserRole,
+    password: t.username
+  }));
+  
+  // Add academic staff
+  academicStaff.forEach(a => allUsers.push({
+    ...a,
+    role: 'academic' as UserRole,
+    password: a.username
+  }));
+  
+  // Add directors
+  directors.forEach(d => allUsers.push({
+    ...d,
+    role: 'director' as UserRole,
+    password: d.username
+  }));
+  
+  return allUsers;
+};
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('');
@@ -23,7 +52,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     e.preventDefault();
     setError('');
 
-    const user = mockUsers.find(
+    const user = getAllUsers().find(
       u => u.username === username && u.password === password
     );
 
@@ -33,6 +62,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         username: user.username,
         fullName: user.fullName,
         role: user.role,
+        email: user.email,
+        phone: user.phone,
+        dateOfBirth: user.dateOfBirth,
+        gender: user.gender,
+        address: user.address,
+        parentName: user.parentName,
+        parentPhone: user.parentPhone,
+        bio: user.bio,
+        code: user.code,
+        avatar: user.avatar,
       });
     } else {
       setError('Tên đăng nhập hoặc mật khẩu không đúng');
@@ -43,11 +82,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(to bottom right, #e0f5f8, #f0f9fb)' }}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style={{ backgroundColor: 'var(--brand-primary)' }}>
-            <GraduationCap className="w-8 h-8 text-white" />
+          <div className="flex justify-center mb-4">
+            <img src={logoHorizontal} alt="English Complex Logo" className="h-16" />
           </div>
-          <h1 className="mb-2" style={{ color: 'var(--brand-primary-900)' }}>English Complex</h1>
-          <p className="text-gray-600">Hệ thống quản lý trung tâm Anh ngữ</p>
+          <p className="text-gray-600">Let your feedback do the talking</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -91,24 +129,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             Đăng nhập
           </button>
 
-          <button
-            type="button"
-            className="w-full hover:opacity-70"
+          <Link
+            to="/forgot-password"
+            className="block w-full text-center hover:opacity-70"
             style={{ color: 'var(--brand-primary)' }}
           >
             Quên mật khẩu?
-          </button>
+          </Link>
         </form>
-
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <p className="text-gray-600 mb-2">Tài khoản demo:</p>
-          <div className="space-y-1 text-sm">
-            <p><span className="font-medium">Học vụ:</span> hocvu01 / hocvu123</p>
-            <p><span className="font-medium">Giáo viên:</span> gv01 / gv123</p>
-            <p><span className="font-medium">Học viên:</span> hv01 / hv123</p>
-            <p><span className="font-medium">Giám đốc:</span> gd01 / gd123</p>
-          </div>
-        </div>
       </div>
     </div>
   );

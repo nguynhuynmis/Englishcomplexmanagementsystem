@@ -18,7 +18,12 @@ interface Submission {
   id: string;
   assignmentId: string;
   studentName: string;
-  submittedDate: string;
+  studentId: string;
+  submittedDate?: string;
+  content?: string; // Text submission
+  fileUrl?: string; // File upload
+  fileName?: string;
+  status: 'not_submitted' | 'submitted' | 'graded';
   grade?: number;
   feedback?: string;
 }
@@ -30,9 +35,9 @@ const mockAssignments: Assignment[] = [
 ];
 
 const mockSubmissions: Submission[] = [
-  { id: '1', assignmentId: '1', studentName: 'Nguyễn Văn A', submittedDate: '02/12/2025', grade: 8.5, feedback: 'Bài viết tốt, cần chú ý grammar' },
-  { id: '2', assignmentId: '1', studentName: 'Trần Thị B', submittedDate: '02/12/2025', grade: 9.0, feedback: 'Xuất sắc!' },
-  { id: '3', assignmentId: '1', studentName: 'Lê Văn C', submittedDate: '03/12/2025' },
+  { id: '1', assignmentId: '1', studentName: 'Nguyễn Văn A', studentId: '101', submittedDate: '02/12/2025', grade: 8.5, feedback: 'Bài viết tốt, cần chú ý grammar' },
+  { id: '2', assignmentId: '1', studentName: 'Trần Thị B', studentId: '102', submittedDate: '02/12/2025', grade: 9.0, feedback: 'Xuất sắc!' },
+  { id: '3', assignmentId: '1', studentName: 'Lê Văn C', studentId: '103', submittedDate: '03/12/2025' },
 ];
 
 interface AssignmentManagementProps {
@@ -44,6 +49,7 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
   const [viewingSubmissions, setViewingSubmissions] = useState<Assignment | null>(null);
+  const [submittingAssignment, setSubmittingAssignment] = useState<Assignment | null>(null); // Thêm
 
   const isTeacher = user.role === 'teacher';
   const isStudent = user.role === 'student';
@@ -106,7 +112,10 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
                     <Eye className="w-4 h-4" />
                     Xem chi tiết
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100">
+                  <button
+                    onClick={() => setSubmittingAssignment(assignment)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"
+                  >
                     <Upload className="w-4 h-4" />
                     Nộp bài
                   </button>
@@ -158,6 +167,14 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
           assignment={viewingSubmissions}
           submissions={mockSubmissions.filter(s => s.assignmentId === viewingSubmissions.id)}
           onClose={() => setViewingSubmissions(null)}
+        />
+      )}
+
+      {/* Submit Assignment Modal (Student) */}
+      {submittingAssignment && (
+        <SubmitAssignmentModal
+          assignment={submittingAssignment}
+          onClose={() => setSubmittingAssignment(null)}
         />
       )}
     </div>
@@ -451,6 +468,72 @@ function GradingModal({ submission, onClose, onSave }: {
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Lưu điểm
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            >
+              Hủy
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function SubmitAssignmentModal({ assignment, onClose }: {
+  assignment: Assignment;
+  onClose: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [content, setContent] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Xử lý nộp bài tập ở đây
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-gray-900">Nộp bài tập - {assignment.title}</h2>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-gray-700 mb-2">Nội dung bài tập</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={4}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Nhập nội dung bài tập..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700 mb-2">File đính kèm</label>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-600">Kéo thả file hoặc click để chọn</p>
+              <input
+                type="file"
+                onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Nộp bài
             </button>
             <button
               type="button"

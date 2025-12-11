@@ -1,40 +1,55 @@
 import { useState } from 'react';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, MapPin, Phone, User, ArrowLeft } from 'lucide-react';
+import { campuses as mockDataCampuses } from '../../data/mockData';
 
 interface Campus {
   id: string;
+  code: string;
   name: string;
   address: string;
   phone: string;
-  manager: string;
+  email: string;
+  manager?: string;
   status: 'active' | 'inactive';
+  classrooms?: number;
+  capacity?: number;
 }
 
-const mockCampuses: Campus[] = [
-  { id: '1', name: 'Cơ sở 1 - Quận 1', address: '123 Nguyễn Huệ, Quận 1, TP.HCM', phone: '028 1234 5678', manager: 'Nguyễn Văn A', status: 'active' },
-  { id: '2', name: 'Cơ sở 2 - Quận 3', address: '456 Lê Văn Sỹ, Quận 3, TP.HCM', phone: '028 2345 6789', manager: 'Trần Thị B', status: 'active' },
-  { id: '3', name: 'Cơ sở 3 - Quận 7', address: '789 Nguyễn Văn Linh, Quận 7, TP.HCM', phone: '028 3456 7890', manager: 'Lê Văn C', status: 'active' },
-];
+// Convert mockData campuses to Campus format with additional fields
+const mockCampuses: Campus[] = mockDataCampuses.map(campus => ({
+  ...campus,
+  manager: campus.code === 'CS001' ? 'Cấn Việt Đức' : 'Nguyễn Thị Lan Anh',
+  classrooms: campus.code === 'CS001' ? 8 : 6,
+  capacity: campus.code === 'CS001' ? 120 : 90,
+}));
+
+type ViewMode = 'list' | 'detail' | 'create' | 'edit';
 
 export default function CampusManagement() {
   const [campuses, setCampuses] = useState<Campus[]>(mockCampuses);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingCampus, setEditingCampus] = useState<Campus | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [selectedCampus, setSelectedCampus] = useState<Campus | null>(null);
 
   const filteredCampuses = campuses.filter(campus =>
     campus.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    campus.address.toLowerCase().includes(searchTerm.toLowerCase())
+    campus.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    campus.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAdd = () => {
-    setEditingCampus(null);
-    setShowModal(true);
+  const handleViewDetail = (campus: Campus) => {
+    setSelectedCampus(campus);
+    setViewMode('detail');
   };
 
   const handleEdit = (campus: Campus) => {
-    setEditingCampus(campus);
-    setShowModal(true);
+    setSelectedCampus(campus);
+    setViewMode('edit');
+  };
+
+  const handleAdd = () => {
+    setSelectedCampus(null);
+    setViewMode('create');
   };
 
   const handleDelete = (id: string) => {
@@ -43,116 +58,253 @@ export default function CampusManagement() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-gray-900">Quản lý cơ sở</h1>
-        <button
-          onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4" />
-          Thêm cơ sở
-        </button>
-      </div>
+  const handleBackToList = () => {
+    setViewMode('list');
+    setSelectedCampus(null);
+  };
 
-      {/* Search & Filter */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên hoặc địa chỉ..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+  const handleSave = (campus: Campus) => {
+    if (viewMode === 'edit' && selectedCampus) {
+      setCampuses(campuses.map(c => c.id === campus.id ? campus : c));
+    } else {
+      setCampuses([...campuses, { ...campus, id: Date.now().toString() }]);
+    }
+    setViewMode('list');
+    setSelectedCampus(null);
+  };
+
+  // List View
+  if (viewMode === 'list') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-gray-900">Quản lý cơ sở</h1>
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
+            <Plus className="w-4 h-4" />
+            Thêm cơ sở
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên, mã hoặc địa chỉ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+            />
+          </div>
+        </div>
+
+        {/* Campus Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredCampuses.map((campus) => (
+            <div key={campus.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary-100)' }}>
+                      <MapPin className="w-6 h-6" style={{ color: 'var(--brand-primary)' }} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-gray-900">{campus.name}</h3>
+                        <span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                          {campus.code}
+                        </span>
+                      </div>
+                      <span
+                        className="inline-flex px-3 py-1 rounded-full text-sm"
+                        style={{
+                          backgroundColor: campus.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                          color: campus.status === 'active' ? '#00b894' : '#d63031',
+                        }}
+                      >
+                        {campus.status === 'active' ? 'Hoạt động' : 'Ngưng hoạt động'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-start gap-2 text-gray-600">
+                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm">{campus.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Phone className="w-4 h-4" />
+                    <span className="text-sm">{campus.phone}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <User className="w-4 h-4" />
+                    <span className="text-sm">Quản lý: {campus.manager}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4 p-3 rounded-lg" style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Phòng học</p>
+                    <p className="text-gray-900">{campus.classrooms} phòng</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Sức chứa</p>
+                    <p className="text-gray-900">{campus.capacity} học viên</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleViewDetail(campus)}
+                    className="flex-1 px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}
+                  >
+                    Xem chi tiết
+                  </button>
+                  <button
+                    onClick={() => handleEdit(campus)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(campus.id)}
+                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+    );
+  }
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-gray-700">Tên cơ sở</th>
-                <th className="px-6 py-3 text-left text-gray-700">Địa chỉ</th>
-                <th className="px-6 py-3 text-left text-gray-700">Điện thoại</th>
-                <th className="px-6 py-3 text-left text-gray-700">Người quản lý</th>
-                <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
-                <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredCampuses.map((campus) => (
-                <tr key={campus.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-gray-900">{campus.name}</td>
-                  <td className="px-6 py-4 text-gray-600">{campus.address}</td>
-                  <td className="px-6 py-4 text-gray-600">{campus.phone}</td>
-                  <td className="px-6 py-4 text-gray-600">{campus.manager}</td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-1 rounded text-sm ${
-                      campus.status === 'active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {campus.status === 'active' ? 'Hoạt động' : 'Ngưng hoạt động'}
+  // Detail View
+  if (viewMode === 'detail' && selectedCampus) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleBackToList}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Quay lại
+          </button>
+        </div>
+
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary-100)' }}>
+                  <MapPin className="w-8 h-8" style={{ color: 'var(--brand-primary)' }} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h1 className="text-gray-900">{selectedCampus.name}</h1>
+                    <span className="px-3 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                      {selectedCampus.code}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => handleEdit(campus)}
-                      className="text-blue-600 hover:text-blue-700 mr-3"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(campus.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <span
+                    className="inline-flex px-3 py-1 rounded-full text-sm"
+                    style={{
+                      backgroundColor: selectedCampus.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                      color: selectedCampus.status === 'active' ? '#00b894' : '#d63031',
+                    }}
+                  >
+                    {selectedCampus.status === 'active' ? 'Hoạt động' : 'Ngưng hoạt động'}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => handleEdit(selectedCampus)}
+                className="px-4 py-2 text-white rounded-lg hover:opacity-90"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                Chỉnh sửa
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Mã cơ sở</p>
+                <p className="text-gray-900">{selectedCampus.code}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Người quản lý</p>
+                <p className="text-gray-900">{selectedCampus.manager}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-sm text-gray-500 mb-2">Địa chỉ</p>
+                <p className="text-gray-900">{selectedCampus.address}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Số điện thoại</p>
+                <p className="text-gray-900">{selectedCampus.phone}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Số phòng học</p>
+                <p className="text-gray-900">{selectedCampus.classrooms} phòng</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Sức chứa</p>
+                <p className="text-gray-900">{selectedCampus.capacity} học viên</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Modal */}
-      {showModal && (
-        <CampusModal
-          campus={editingCampus}
-          onClose={() => setShowModal(false)}
-          onSave={(campus) => {
-            if (editingCampus) {
-              setCampuses(campuses.map(c => c.id === campus.id ? campus : c));
-            } else {
-              setCampuses([...campuses, { ...campus, id: Date.now().toString() }]);
-            }
-            setShowModal(false);
-          }}
-        />
-      )}
-    </div>
-  );
+  // Create/Edit View
+  if ((viewMode === 'create' || viewMode === 'edit') && (selectedCampus || viewMode === 'create')) {
+    return (
+      <CampusFormView
+        campus={selectedCampus}
+        onBack={handleBackToList}
+        onSave={handleSave}
+      />
+    );
+  }
+
+  return null;
 }
 
-function CampusModal({ campus, onClose, onSave }: {
+function CampusFormView({
+  campus,
+  onBack,
+  onSave,
+}: {
   campus: Campus | null;
-  onClose: () => void;
+  onBack: () => void;
   onSave: (campus: Campus) => void;
 }) {
   const [formData, setFormData] = useState<Campus>(
     campus || {
       id: '',
+      code: '',
       name: '',
       address: '',
       phone: '',
       manager: '',
       status: 'active',
+      classrooms: 0,
+      capacity: 0,
     }
   );
 
@@ -162,66 +314,142 @@ function CampusModal({ campus, onClose, onSave }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Quay lại
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-gray-900">
+          <h1 className="text-gray-900">
             {campus ? 'Chỉnh sửa cơ sở' : 'Thêm cơ sở mới'}
-          </h2>
+          </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-gray-700 mb-2">Tên cơ sở</label>
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Mã cơ sở <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="VD: LB, HBT"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Tên cơ sở <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="VD: Cơ sở Long Biên"
                 required
               />
             </div>
 
-            <div className="col-span-2">
-              <label className="block text-gray-700 mb-2">Địa chỉ</label>
+            <div className="md:col-span-2">
+              <label className="block text-gray-700 mb-2">
+                Địa chỉ <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="Nhập địa chỉ đầy đủ"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-2">Điện thoại</label>
+              <label className="block text-gray-700 mb-2">
+                Số điện thoại <span className="text-red-500">*</span>
+              </label>
               <input
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="VD: 0986.922.618"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-2">Người quản lý</label>
+              <label className="block text-gray-700 mb-2">
+                Người quản lý <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 value={formData.manager}
                 onChange={(e) => setFormData({ ...formData, manager: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="Nhập tên người quản lý"
                 required
               />
             </div>
 
-            <div className="col-span-2">
-              <label className="block text-gray-700 mb-2">Trạng thái</label>
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Số phòng học <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                value={formData.classrooms}
+                onChange={(e) => setFormData({ ...formData, classrooms: parseInt(e.target.value) || 0 })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="VD: 8"
+                required
+                min="1"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Sức chứa (học viên) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                value={formData.capacity}
+                onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="VD: 120"
+                required
+                min="1"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Trạng thái <span className="text-red-500">*</span>
+              </label>
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
               >
                 <option value="active">Hoạt động</option>
                 <option value="inactive">Ngưng hoạt động</option>
@@ -232,14 +460,15 @@ function CampusModal({ campus, onClose, onSave }: {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="px-6 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
             >
               {campus ? 'Cập nhật' : 'Thêm mới'}
             </button>
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              onClick={onBack}
+              className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
             >
               Hủy
             </button>

@@ -1,23 +1,31 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { User } from '../App';
+import { ReactNode, useState } from 'react';
+import { Link, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Building2,
   Users,
-  GraduationCap,
+  UserCheck,
   BookOpen,
   Calendar,
+  Award,
   FileText,
   ClipboardList,
   MessageSquare,
   BarChart3,
   Settings,
-  Bell,
-  LogOut,
   Menu,
   X,
+  Bell,
+  UserCircle,
+  User as UserIcon,
+  KeyRound,
+  LogOut,
+  ChevronDown,
 } from 'lucide-react';
-import { useState } from 'react';
+import { User } from '../App';
+import NotificationPanel from './NotificationPanel';
+import ChangePasswordModal from './ChangePasswordModal';
+import logo3D from 'figma:asset/f622a5ebfd97d64a4d171316f8cb3731d4968ae8.png';
 
 interface DashboardLayoutProps {
   user: User;
@@ -71,8 +79,8 @@ const menuItems: MenuItem[] = [
   {
     path: '/dashboard/teachers',
     label: 'Quản lý giáo viên',
-    icon: <GraduationCap className="w-5 h-5" />,
-    roles: ['academic'],
+    icon: <UserCheck className="w-5 h-5" />,
+    roles: ['academic'], // Chỉ học vụ
   },
   {
     path: '/dashboard/classes',
@@ -84,13 +92,25 @@ const menuItems: MenuItem[] = [
     path: '/dashboard/schedule',
     label: 'Quản lý lịch học',
     icon: <Calendar className="w-5 h-5" />,
-    roles: ['academic', 'teacher', 'student'],
+    roles: ['academic', 'teacher'],
+  },
+  {
+    path: '/dashboard/schedule',
+    label: 'Lịch học của tôi',
+    icon: <Calendar className="w-5 h-5" />,
+    roles: ['student'],
   },
   {
     path: '/dashboard/grades',
     label: 'Quản lý điểm',
-    icon: <FileText className="w-5 h-5" />,
-    roles: ['academic', 'teacher', 'student'],
+    icon: <Award className="w-5 h-5" />,
+    roles: ['academic', 'teacher'],
+  },
+  {
+    path: '/dashboard/grades',
+    label: 'Quá trình học tập',
+    icon: <Award className="w-5 h-5" />,
+    roles: ['student'],
   },
   {
     path: '/dashboard/documents',
@@ -127,6 +147,9 @@ const menuItems: MenuItem[] = [
 export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
 
   const filteredMenuItems = menuItems.filter(item => 
     item.roles.includes(user.role)
@@ -144,9 +167,7 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
           {/* Logo */}
           <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary)' }}>
-                <GraduationCap className="w-5 h-5 text-white" />
-              </div>
+              <img src={logo3D} alt="English Complex" className="h-10 w-10 object-contain" />
               <span style={{ color: 'var(--brand-primary-900)' }}>English Complex</span>
             </div>
             <button
@@ -180,31 +201,6 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
               </Link>
             ))}
           </nav>
-
-          {/* User Info */}
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: 'var(--brand-primary)' }}>
-                {user.fullName.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-gray-900 truncate">{user.fullName}</p>
-                <p className="text-gray-500 text-sm">
-                  {user.role === 'academic' && 'Học vụ'}
-                  {user.role === 'teacher' && 'Giáo viên'}
-                  {user.role === 'student' && 'Học viên'}
-                  {user.role === 'director' && 'Giám đốc'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onLogout}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Đăng xuất</span>
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -222,10 +218,93 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
           <div className="flex-1" />
 
           <div className="flex items-center gap-4">
-            <button className="relative p-2 text-gray-600 hover:text-gray-900">
+            {/* Notification Bell */}
+            <button 
+              onClick={() => setNotificationOpen(true)}
+              className="relative p-2 text-gray-600 hover:text-gray-900"
+            >
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
+
+            {/* User Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg transition-colors"
+              >
+                <div 
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  {user.fullName.charAt(0)}
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-600" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {userMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 py-3 z-20">
+                    {/* User Info Header */}
+                    <div className="px-4 pb-3 border-b border-gray-200">
+                      <p className="text-gray-900">{user.fullName}</p>
+                      <p className="text-gray-500 text-sm">{user.code || user.username}</p>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <Link
+                        to="/dashboard/profile"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 transition-colors"
+                      >
+                        <UserIcon className="w-5 h-5 text-gray-400" />
+                        <span>Hồ sơ của tôi</span>
+                      </Link>
+                      
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          setChangePasswordModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 text-gray-700 transition-colors"
+                      >
+                        <KeyRound className="w-5 h-5 text-gray-400" />
+                        <span>Đổi mật khẩu</span>
+                      </button>
+                    </div>
+
+                    {/* Logout Button */}
+                    <div className="px-4 pt-2">
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          onLogout();
+                        }}
+                        className="w-full py-2.5 rounded-lg border-2 transition-colors"
+                        style={{ 
+                          borderColor: 'var(--brand-primary)',
+                          color: 'var(--brand-primary)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--brand-primary-light)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        Đăng xuất
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -242,6 +321,20 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      {/* Notification Panel */}
+      <NotificationPanel
+        user={user}
+        isOpen={notificationOpen}
+        onClose={() => setNotificationOpen(false)}
+      />
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={changePasswordModalOpen}
+        onClose={() => setChangePasswordModalOpen(false)}
+        userName={user.fullName}
+      />
     </div>
   );
 }

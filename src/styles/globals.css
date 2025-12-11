@@ -40,16 +40,35 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   
-  /* Custom brand colors */
+  /* Custom brand colors - Pastel tone */
   --brand-primary: #2baec0;
   --brand-primary-dark: #239aa9;
   --brand-primary-light: #e0f5f8;
-  --brand-primary-50: rgba(43, 174, 192, 0.1);
-  --brand-primary-100: rgba(43, 174, 192, 0.2);
-  --brand-primary-200: rgba(43, 174, 192, 0.3);
+  --brand-primary-50: #f0fafb;
+  --brand-primary-100: #d4f1f5;
+  --brand-primary-200: #b8e8ed;
+  --brand-primary-300: #7dd5df;
+  --brand-primary-400: #4dc3d1;
+  --brand-primary-500: #2baec0;
+  --brand-primary-600: #239aa9;
   --brand-primary-700: #1d8695;
   --brand-primary-800: #176e7a;
   --brand-primary-900: #114f57;
+  
+  /* Pastel supporting colors - Updated palette */
+  --pastel-lavender: #e4ccf1;
+  --pastel-lavender-light: #f7f0fa;
+  --pastel-lavender-dark: #d4a8e3;
+  --pastel-yellow: #ffe9ae;
+  --pastel-yellow-light: #fff8e5;
+  --pastel-yellow-dark: #ffd97a;
+  --pastel-blue: #a2d2ff;
+  --pastel-blue-light: #e8f4ff;
+  --pastel-blue-dark: #73bfff;
+  --pastel-green: #a8e6cf;
+  --pastel-green-light: #e8f8f2;
+  --pastel-pink: #ffaaa5;
+  --pastel-pink-light: #fff0ef;
 }
 
 .dark {

@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './components/LoginPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
+import TestResetPasswordFlow from './components/TestResetPasswordFlow';
+import ProfilePage from './components/ProfilePage';
 import DashboardLayout from './components/DashboardLayout';
 import AcademicDashboard from './components/dashboards/AcademicDashboard';
 import TeacherDashboard from './components/dashboards/TeacherDashboard';
@@ -17,6 +21,7 @@ import FeedbackManagement from './components/modules/FeedbackManagement';
 import ReportStatistics from './components/modules/ReportStatistics';
 import UserManagement from './components/modules/UserManagement';
 import CampusManagement from './components/modules/CampusManagement';
+import AttendanceManagement from './components/modules/AttendanceManagement';
 
 export type UserRole = 'academic' | 'teacher' | 'student' | 'director';
 
@@ -26,6 +31,15 @@ export interface User {
   fullName: string;
   role: UserRole;
   avatar?: string;
+  email?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  gender?: 'male' | 'female' | 'other';
+  address?: string;
+  parentName?: string;
+  parentPhone?: string;
+  bio?: string;
+  code?: string;
 }
 
 function App() {
@@ -50,7 +64,17 @@ function App() {
   };
 
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <Router>
+        <Routes>
+          <Route path="/" element={<LoginPage onLogin={handleLogin} />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/test-reset-password-flow" element={<TestResetPasswordFlow />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+    );
   }
 
   const getDashboardRoute = () => {
@@ -86,13 +110,17 @@ function App() {
           {/* Director Dashboard */}
           <Route path="director" element={<DirectorDashboard />} />
           
+          {/* Profile Page */}
+          <Route path="profile" element={<ProfilePage user={currentUser} />} />
+          
           {/* Management Modules */}
           <Route path="campus" element={<CampusManagement />} />
           <Route path="students" element={<StudentManagement />} />
           <Route path="teachers" element={<TeacherManagement />} />
-          <Route path="classes" element={<ClassManagement />} />
-          <Route path="schedule" element={<ScheduleManagement />} />
-          <Route path="grades" element={<GradeManagement />} />
+          <Route path="classes" element={<ClassManagement user={currentUser} />} />
+          <Route path="schedule" element={<ScheduleManagement user={currentUser} />} />
+          <Route path="attendance" element={<AttendanceManagement user={currentUser} />} />
+          <Route path="grades" element={<GradeManagement user={currentUser} />} />
           <Route path="documents" element={<DocumentManagement user={currentUser} />} />
           <Route path="assignments" element={<AssignmentManagement user={currentUser} />} />
           <Route path="feedback" element={<FeedbackManagement user={currentUser} />} />

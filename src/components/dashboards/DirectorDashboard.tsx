@@ -1,69 +1,121 @@
-import { Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Users, BookOpen, GraduationCap, TrendingUp, Download } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { students, classes, teachers, campuses } from '../../data/mockData';
 
-const stats = [
-  { label: 'Tổng học viên', value: '1,247', change: '+12%', icon: Users, color: 'bg-blue-500' },
-  { label: 'Tổng lớp học', value: '42', change: '+5%', icon: BookOpen, color: 'bg-green-500' },
-  { label: 'Tổng giáo viên', value: '28', change: '+3%', icon: GraduationCap, color: 'bg-purple-500' },
-  { label: 'Tỷ lệ hoàn thành', value: '89%', change: '+7%', icon: TrendingUp, color: 'bg-orange-500' },
-];
+// Tính toán số liệu học viên theo cơ sở từ mockData
+const studentsByCampus = campuses.map(campus => {
+  const campusStudents = students.filter(s => s.campus === campus.id);
+  return {
+    name: campus.name,
+    students: campusStudents.length
+  };
+});
 
-const studentsByCampus = [
-  { name: 'Cơ sở 1', students: 450 },
-  { name: 'Cơ sở 2', students: 387 },
-  { name: 'Cơ sở 3', students: 410 },
-];
+// Tính toán hiệu suất giáo viên từ mockData
+const teacherPerformance = teachers.slice(0, 5).map(teacher => {
+  const teacherClasses = classes.filter(c => c.teacher === teacher.fullName && c.status === 'active');
+  const totalStudents = teacherClasses.reduce((sum, c) => sum + c.totalStudents, 0);
+  // Mock rating dựa trên IELTS score
+  const rating = teacher.ieltsScore ? (teacher.ieltsScore / 9 * 10).toFixed(1) : '8.5';
+  
+  return {
+    name: teacher.fullName,
+    rating: parseFloat(rating),
+    classes: teacherClasses.length,
+    students: totalStudents
+  };
+}).sort((a, b) => b.rating - a.rating);
 
+// Mock data cho xu hướng tăng trưởng (có thể cải thiện bằng cách tính từ enrollDate)
 const enrollmentTrend = [
-  { month: 'T7', students: 1100 },
-  { month: 'T8', students: 1150 },
-  { month: 'T9', students: 1180 },
-  { month: 'T10', students: 1200 },
-  { month: 'T11', students: 1230 },
-  { month: 'T12', students: 1247 },
+  { month: 'T7', students: students.length - 5 },
+  { month: 'T8', students: students.length - 4 },
+  { month: 'T9', students: students.length - 3 },
+  { month: 'T10', students: students.length - 2 },
+  { month: 'T11', students: students.length - 1 },
+  { month: 'T12', students: students.length },
 ];
 
+// Mock data phân bố điểm
 const gradeDistribution = [
-  { name: 'Xuất sắc (9-10)', value: 28, color: '#10b981' },
-  { name: 'Giỏi (8-9)', value: 35, color: '#3b82f6' },
-  { name: 'Khá (7-8)', value: 25, color: '#f59e0b' },
-  { name: 'Trung bình (6-7)', value: 10, color: '#ef4444' },
-  { name: 'Yếu (<6)', value: 2, color: '#6b7280' },
+  { name: 'Xuất sắc (9-10)', value: 15, color: 'var(--brand-primary)' },
+  { name: 'Giỏi (8-9)', value: 35, color: '#00b894' },
+  { name: 'Khá (7-8)', value: 25, color: '#ffe9ae' },
+  { name: 'Trung bình (6-7)', value: 10, color: '#e74c3c' },
 ];
 
-const teacherPerformance = [
-  { name: 'Trần Thị B', rating: 9.5, classes: 3, students: 45 },
-  { name: 'Nguyễn Văn C', rating: 9.2, classes: 2, students: 30 },
-  { name: 'Lê Thị D', rating: 9.0, classes: 2, students: 27 },
-  { name: 'Phạm Văn E', rating: 8.8, classes: 3, students: 38 },
-  { name: 'Hoàng Thị F', rating: 8.5, classes: 2, students: 25 },
-];
-
+// Mock data phản hồi
 const recentFeedback = [
-  { student: 'Nguyễn Văn A', rating: 5, comment: 'Giáo viên nhiệt tình, giảng dạy dễ hiểu', date: '02/12/2025' },
-  { student: 'Trần Thị B', rating: 4, comment: 'Cơ sở vật chất tốt, phòng học rộng rãi', date: '01/12/2025' },
-  { student: 'Lê Văn C', rating: 5, comment: 'Chương trình học phù hợp, tiến bộ rõ rệt', date: '30/11/2025' },
+  { student: students[0]?.fullName || 'Học viên A', rating: 5, comment: 'Giáo viên nhiệt tình, giảng dạy dễ hiểu', date: '02/12/2024' },
+  { student: students[1]?.fullName || 'Học viên B', rating: 4, comment: 'Cơ sở vật chất tốt, phòng học rộng rãi', date: '01/12/2024' },
+  { student: students[2]?.fullName || 'Học viên C', rating: 5, comment: 'Chương trình học phù hợp, tiến bộ rõ rệt', date: '30/11/2024' },
 ];
 
 export default function DirectorDashboard() {
+  const exportToExcel = () => {
+    alert('Xuất báo cáo Excel thành công!');
+  };
+
   return (
     <div className="space-y-6">
-      <h1 className="text-gray-900">Dashboard - Ban giám đốc</h1>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-gray-900">Dashboard - Ban giám đốc</h1>
+        <button
+          onClick={exportToExcel}
+          className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90"
+          style={{ backgroundColor: 'var(--brand-primary)' }}
+        >
+          <Download className="w-4 h-4" />
+          Xuất Excel
+        </button>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`${stat.color} p-3 rounded-lg`}>
-                <stat.icon className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-green-600 text-sm">{stat.change}</span>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Tổng học viên</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-green-light)' }}>
+              <Users className="w-5 h-5" style={{ color: '#00b894' }} />
             </div>
-            <p className="text-gray-600 mb-1">{stat.label}</p>
-            <p className="text-gray-900">{stat.value}</p>
           </div>
-        ))}
+          <h2 className="text-gray-900 mb-1">{students.length}</h2>
+          <p className="text-sm" style={{ color: '#00b894' }}>+12% so với tháng trước</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Tổng lớp học</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary-100)' }}>
+              <BookOpen className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">{classes.length}</h2>
+          <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>+5% so với tháng trước</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Tổng giảng viên</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-lavender-light)' }}>
+              <GraduationCap className="w-5 h-5" style={{ color: 'var(--pastel-lavender-dark)' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">{teachers.length}</h2>
+          <p className="text-sm" style={{ color: 'var(--pastel-lavender-dark)' }}>+3% so với tháng trước</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Lớp đang hoạt động</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-yellow-light)' }}>
+              <TrendingUp className="w-5 h-5" style={{ color: '#e67e22' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">{classes.filter(c => c.status === 'active').length}</h2>
+          <p className="text-sm" style={{ color: '#e67e22' }}>+7% so với tháng trước</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -77,7 +129,7 @@ export default function DirectorDashboard() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="students" stroke="#3b82f6" strokeWidth={2} name="Số học viên" />
+              <Line type="monotone" dataKey="students" stroke="var(--brand-primary)" strokeWidth={2} name="Số học viên" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -92,7 +144,7 @@ export default function DirectorDashboard() {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="students" fill="#10b981" name="Số học viên" />
+              <Bar dataKey="students" fill="#00b894" name="Số học viên" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -128,7 +180,7 @@ export default function DirectorDashboard() {
           <h2 className="text-gray-900 mb-4">Hiệu suất giảng dạy</h2>
           <div className="space-y-3">
             {teacherPerformance.map((teacher, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
+              <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-gray-900">{teacher.name}</p>
                   <div className="flex items-center gap-1">
@@ -151,7 +203,7 @@ export default function DirectorDashboard() {
         <h2 className="text-gray-900 mb-4">Phản hồi & Đánh giá gần đây</h2>
         <div className="space-y-3">
           {recentFeedback.map((feedback, index) => (
-            <div key={index} className="border border-gray-200 rounded-lg p-4">
+            <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-start justify-between mb-2">
                 <div>
                   <p className="text-gray-900">{feedback.student}</p>

@@ -1,51 +1,120 @@
-import { useState } from 'react';
-import { Download, Filter } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Download, Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
-const studentsByCampus = [
-  { name: 'Cơ sở 1', students: 450, classes: 15 },
-  { name: 'Cơ sở 2', students: 387, classes: 12 },
-  { name: 'Cơ sở 3', students: 410, classes: 15 },
-];
-
-const enrollmentTrend = [
-  { month: 'T7/2025', students: 1100, revenue: 550 },
-  { month: 'T8/2025', students: 1150, revenue: 575 },
-  { month: 'T9/2025', students: 1180, revenue: 590 },
-  { month: 'T10/2025', students: 1200, revenue: 600 },
-  { month: 'T11/2025', students: 1230, revenue: 615 },
-  { month: 'T12/2025', students: 1247, revenue: 624 },
-];
-
-const gradeDistribution = [
-  { name: 'Xuất sắc (9-10)', value: 28, color: '#10b981' },
-  { name: 'Giỏi (8-9)', value: 35, color: '#3b82f6' },
-  { name: 'Khá (7-8)', value: 25, color: '#f59e0b' },
-  { name: 'Trung bình (6-7)', value: 10, color: '#ef4444' },
-  { name: 'Yếu (<6)', value: 2, color: '#6b7280' },
-];
-
-const classPerformance = [
-  { class: 'IELTS Beginner A1', avgGrade: 8.5, attendance: 95, completion: 90 },
-  { class: 'IELTS Beginner A2', avgGrade: 8.2, attendance: 92, completion: 88 },
-  { class: 'IELTS Intermediate B1', avgGrade: 8.8, attendance: 96, completion: 92 },
-  { class: 'IELTS Advanced C1', avgGrade: 9.0, attendance: 97, completion: 95 },
-  { class: 'IELTS Master', avgGrade: 9.3, attendance: 98, completion: 97 },
-];
-
-const teacherStats = [
-  { name: 'Trần Thị B', classes: 3, students: 45, avgRating: 9.5, avgGrade: 8.7 },
-  { name: 'Nguyễn Văn C', classes: 2, students: 30, avgRating: 9.2, avgGrade: 8.5 },
-  { name: 'Lê Thị D', classes: 2, students: 27, avgRating: 9.0, avgGrade: 8.8 },
-  { name: 'Phạm Văn E', classes: 3, students: 38, avgRating: 8.8, avgGrade: 8.4 },
-  { name: 'Hoàng Thị F', classes: 2, students: 25, avgRating: 8.5, avgGrade: 8.2 },
-];
+import { students, teachers, classes, campuses } from '../../data/mockData';
 
 export default function ReportStatistics() {
   const [filterCampus, setFilterCampus] = useState('all');
-  const [filterMonth, setFilterMonth] = useState('all');
+  const [filterClass, setFilterClass] = useState('all');
+  const [filterTeacher, setFilterTeacher] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
-  const handleExport = () => {
+  // Calculate real statistics from mock data
+  const stats = useMemo(() => {
+    const filteredStudents = filterCampus === 'all' 
+      ? students 
+      : students.filter(s => s.campus === filterCampus);
+    
+    const filteredClasses = filterCampus === 'all'
+      ? classes
+      : classes.filter(c => c.campus === (filterCampus === 'CS001' ? 'Cơ sở Long Biên' : 'Cơ sở Hai Bà Trưng'));
+
+    const filteredTeachers = filterCampus === 'all'
+      ? teachers
+      : teachers.filter(t => t.campus === filterCampus);
+
+    // Total statistics
+    const totalStudents = filteredStudents.length;
+    const totalClasses = filteredClasses.filter(c => c.status === 'active').length;
+    const totalTeachers = filteredTeachers.length;
+    const totalEnrolledInClasses = filteredClasses.reduce((sum, c) => sum + c.totalStudents, 0);
+
+    // Students by campus
+    const studentsByCampusData = campuses.map(campus => {
+      const campusStudents = students.filter(s => s.campus === campus.id);
+      const campusClasses = classes.filter(c => 
+        c.campus === campus.name && c.status === 'active'
+      );
+      return {
+        name: campus.name,
+        students: campusStudents.length,
+        classes: campusClasses.length,
+      };
+    });
+
+    // Classes by level
+    const classesByLevel = ['Foundation', 'Beginner', 'Intermediate', 'Advanced'].map(level => {
+      const levelClasses = filteredClasses.filter(c => c.level === level);
+      return {
+        name: level,
+        classes: levelClasses.length,
+        students: levelClasses.reduce((sum, c) => sum + c.totalStudents, 0),
+      };
+    });
+
+    // Teacher statistics
+    const teacherStats = filteredTeachers.map(teacher => {
+      const teacherClasses = filteredClasses.filter(c => c.teacher === teacher.fullName);
+      const totalStudentsInClasses = teacherClasses.reduce((sum, c) => sum + c.totalStudents, 0);
+      
+      return {
+        name: teacher.fullName,
+        classes: teacherClasses.length,
+        students: totalStudentsInClasses,
+        ielts: teacher.ieltsScore || 0,
+      };
+    });
+
+    // Class performance (capacity utilization)
+    const classPerformance = filteredClasses
+      .filter(c => c.status === 'active')
+      .map(cls => ({
+        class: cls.name,
+        utilization: Math.round((cls.totalStudents / cls.maxStudents) * 100),
+        total: cls.totalStudents,
+        max: cls.maxStudents,
+      }));
+
+    // Mock enrollment trend (would be from real data)
+    const enrollmentTrend = [
+      { month: 'T7/2024', students: totalStudents - 15, classes: totalClasses - 2 },
+      { month: 'T8/2024', students: totalStudents - 12, classes: totalClasses - 2 },
+      { month: 'T9/2024', students: totalStudents - 8, classes: totalClasses - 1 },
+      { month: 'T10/2024', students: totalStudents - 5, classes: totalClasses - 1 },
+      { month: 'T11/2024', students: totalStudents - 2, classes: totalClasses },
+      { month: 'T12/2024', students: totalStudents, classes: totalClasses },
+    ];
+
+    // Status distribution
+    const statusDistribution = [
+      { 
+        name: 'Đang học', 
+        value: students.filter(s => s.status === 'active').length, 
+        color: 'var(--brand-primary)' 
+      },
+      { 
+        name: 'Đã nghỉ', 
+        value: students.filter(s => s.status === 'inactive').length, 
+        color: '#e74c3c' 
+      },
+    ];
+
+    return {
+      totalStudents,
+      totalClasses,
+      totalTeachers,
+      totalEnrolledInClasses,
+      studentsByCampusData,
+      classesByLevel,
+      teacherStats,
+      classPerformance,
+      enrollmentTrend,
+      statusDistribution,
+    };
+  }, [filterCampus]);
+
+  const exportToExcel = () => {
     alert('Xuất báo cáo Excel thành công!');
   };
 
@@ -54,8 +123,9 @@ export default function ReportStatistics() {
       <div className="flex items-center justify-between">
         <h1 className="text-gray-900">Báo cáo - Thống kê</h1>
         <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          onClick={exportToExcel}
+          className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90"
+          style={{ backgroundColor: 'var(--brand-primary)' }}
         >
           <Download className="w-4 h-4" />
           Xuất Excel
@@ -64,33 +134,69 @@ export default function ReportStatistics() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-gray-700 mb-2">Lọc theo cơ sở</label>
             <select
               value={filterCampus}
               onChange={(e) => setFilterCampus(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
             >
               <option value="all">Tất cả cơ sở</option>
-              <option value="cs1">Cơ sở 1</option>
-              <option value="cs2">Cơ sở 2</option>
-              <option value="cs3">Cơ sở 3</option>
+              <option value="CS001">Cơ sở Long Biên</option>
+              <option value="CS002">Cơ sở Hai Bà Trưng</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-gray-700 mb-2">Lọc theo tháng</label>
+            <label className="block text-gray-700 mb-2">Lọc theo lớp</label>
             <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={filterClass}
+              onChange={(e) => setFilterClass(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
             >
-              <option value="all">Tất cả tháng</option>
-              <option value="12/2025">Tháng 12/2025</option>
-              <option value="11/2025">Tháng 11/2025</option>
-              <option value="10/2025">Tháng 10/2025</option>
+              <option value="all">Tất cả lớp</option>
+              {classes.map(cls => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 mb-2">Lọc theo giảng viên</label>
+            <select
+              value={filterTeacher}
+              onChange={(e) => setFilterTeacher(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+            >
+              <option value="all">Tất cả giảng viên</option>
+              {teachers.map(teacher => (
+                <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 mb-2">Lọc theo thời gian</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+              />
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -98,147 +204,207 @@ export default function ReportStatistics() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600 mb-2">Tổng học viên</p>
-          <p className="text-gray-900">1,247</p>
-          <p className="text-green-600 text-sm mt-1">+12% so với tháng trước</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Tổng học viên</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-green-light)' }}>
+              <Users className="w-5 h-5" style={{ color: '#00b894' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">{stats.totalStudents}</h2>
+          <p className="text-sm" style={{ color: '#00b894' }}>
+            Đang học: {stats.statusDistribution[0].value}
+          </p>
         </div>
+
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600 mb-2">Tổng lớp học</p>
-          <p className="text-gray-900">42</p>
-          <p className="text-green-600 text-sm mt-1">+5% so với tháng trước</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Tổng lớp học</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary-100)' }}>
+              <BookOpen className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">{stats.totalClasses}</h2>
+          <p className="text-sm text-gray-600">
+            Đang hoạt động
+          </p>
         </div>
+
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600 mb-2">Tổng giáo viên</p>
-          <p className="text-gray-900">28</p>
-          <p className="text-green-600 text-sm mt-1">+3% so với tháng trước</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Tổng giảng viên</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-lavender-light)' }}>
+              <GraduationCap className="w-5 h-5" style={{ color: 'var(--pastel-lavender-dark)' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">{stats.totalTeachers}</h2>
+          <p className="text-sm text-gray-600">
+            Đang giảng dạy
+          </p>
         </div>
+
         <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600 mb-2">Điểm TB toàn trung tâm</p>
-          <p className="text-gray-900">8.6</p>
-          <p className="text-green-600 text-sm mt-1">+0.3 so với tháng trước</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-600">Sĩ số trung bình</p>
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-yellow-light)' }}>
+              <TrendingUp className="w-5 h-5" style={{ color: '#ffd97a' }} />
+            </div>
+          </div>
+          <h2 className="text-gray-900 mb-1">
+            {stats.totalClasses > 0 
+              ? Math.round(stats.totalEnrolledInClasses / stats.totalClasses) 
+              : 0}
+          </h2>
+          <p className="text-sm text-gray-600">
+            Học viên/lớp
+          </p>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Enrollment Trend */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Xu hướng tăng trưởng học viên</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={enrollmentTrend}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="students" stroke="#3b82f6" strokeWidth={2} name="Số học viên" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Students by Campus */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Học viên & Lớp học theo cơ sở</h2>
+          <h2 className="text-gray-900 mb-4">Học viên theo cơ sở</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={studentsByCampus}>
+            <BarChart data={stats.studentsByCampusData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="students" fill="#3b82f6" name="Học viên" />
-              <Bar dataKey="classes" fill="#10b981" name="Lớp học" />
+              <Bar dataKey="students" fill="var(--brand-primary)" name="Học viên" />
+              <Bar dataKey="classes" fill="#00b894" name="Lớp học" />
             </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Enrollment Trend */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-gray-900 mb-4">Xu hướng tăng trưởng</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={stats.enrollmentTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="students" stroke="var(--brand-primary)" strokeWidth={2} name="Học viên" />
+              <Line type="monotone" dataKey="classes" stroke="#00b894" strokeWidth={2} name="Lớp học" />
+            </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Grade Distribution */}
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Classes by Level */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Phân bố điểm số (%)</h2>
+          <h2 className="text-gray-900 mb-4">Lớp học theo trình độ</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={stats.classesByLevel}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="classes" fill="var(--brand-primary)" name="Số lớp" />
+              <Bar dataKey="students" fill="#ffe9ae" name="Số học viên" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Status Distribution */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-gray-900 mb-4">Phân bố trạng thái</h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={gradeDistribution}
+                data={stats.statusDistribution}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, value }) => `${value}%`}
+                label={(entry) => `${entry.name}: ${entry.value}`}
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="value"
               >
-                {gradeDistribution.map((entry, index) => (
+                {stats.statusDistribution.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip />
-              <Legend />
             </PieChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Class Performance */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Hiệu suất lớp học</h2>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {classPerformance.map((classItem, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
-                <p className="text-gray-900 mb-3">{classItem.class}</p>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <p className="text-gray-600 mb-1">Điểm TB</p>
-                    <p className="text-gray-900">{classItem.avgGrade}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 mb-1">Chuyên cần</p>
-                    <p className="text-gray-900">{classItem.attendance}%</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 mb-1">Hoàn thành</p>
-                    <p className="text-gray-900">{classItem.completion}%</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* Teacher Statistics */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-gray-900 mb-4">Thống kê giáo viên</h2>
+      {/* Teacher Stats Table */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-gray-900">Thống kê giảng viên</h2>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
               <tr>
-                <th className="px-6 py-3 text-left text-gray-700">Giáo viên</th>
-                <th className="px-6 py-3 text-center text-gray-700">Số lớp</th>
-                <th className="px-6 py-3 text-center text-gray-700">Số học viên</th>
-                <th className="px-6 py-3 text-center text-gray-700">Đánh giá TB</th>
-                <th className="px-6 py-3 text-center text-gray-700">Điểm TB lớp</th>
+                <th className="px-6 py-3 text-left text-gray-700">Giảng viên</th>
+                <th className="px-6 py-3 text-left text-gray-700">Số lớp</th>
+                <th className="px-6 py-3 text-left text-gray-700">Số học viên</th>
+                <th className="px-6 py-3 text-left text-gray-700">IELTS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {teacherStats.map((teacher, index) => (
+              {stats.teacherStats.map((teacher, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-gray-900">{teacher.name}</td>
-                  <td className="px-6 py-4 text-center text-gray-600">{teacher.classes}</td>
-                  <td className="px-6 py-4 text-center text-gray-600">{teacher.students}</td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <span className="text-yellow-500">★</span>
-                      <span className="text-gray-900">{teacher.avgRating}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex px-3 py-1 rounded ${
-                      teacher.avgGrade >= 9 ? 'bg-green-100 text-green-700' :
-                      teacher.avgGrade >= 8 ? 'bg-blue-100 text-blue-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {teacher.avgGrade}
+                  <td className="px-6 py-4 text-gray-700">{teacher.classes}</td>
+                  <td className="px-6 py-4 text-gray-700">{teacher.students}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                      {teacher.ielts.toFixed(1)}
                     </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Class Performance Table */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-gray-900">Tỷ lệ lấp đầy lớp học</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+              <tr>
+                <th className="px-6 py-3 text-left text-gray-700">Lớp học</th>
+                <th className="px-6 py-3 text-left text-gray-700">Sĩ số</th>
+                <th className="px-6 py-3 text-left text-gray-700">Tỷ lệ lấp đầy</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {stats.classPerformance.map((cls, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-gray-900">{cls.class}</td>
+                  <td className="px-6 py-4 text-gray-700">
+                    {cls.total}/{cls.max}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div
+                          className="h-2 rounded-full"
+                          style={{
+                            width: `${cls.utilization}%`,
+                            backgroundColor: cls.utilization >= 80 ? '#00b894' : cls.utilization >= 60 ? '#ffe9ae' : '#e74c3c',
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-700 w-12">{cls.utilization}%</span>
+                    </div>
                   </td>
                 </tr>
               ))}

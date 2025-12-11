@@ -1,34 +1,46 @@
 import { useState } from 'react';
-import { Plus, Edit, Users, UserPlus, Search } from 'lucide-react';
+import { Plus, Edit, Users, UserPlus, Search, Eye, ArrowLeft } from 'lucide-react';
+import { User } from '../../App';
+import { students, classes as initialClasses, Class as ClassType, campusNames } from '../../data/mockData';
+import ClassFormModal from './ClassFormModal';
 
-interface Class {
-  id: string;
-  name: string;
-  campus: string;
-  level: string;
-  capacity: number;
-  currentStudents: number;
-  teacher: string;
-  status: 'active' | 'completed';
-  schedule: string;
+type ViewMode = 'list' | 'detail' | 'edit' | 'create';
+
+// Màu cho mỗi trình độ
+const getLevelColor = (level: string) => {
+  switch (level) {
+    case 'Foundation':
+      return { bg: '#e1f5fe', color: '#01579b' }; // Xanh dương rất nhạt
+    case 'Beginner':
+      return { bg: '#e3f2fd', color: '#1565c0' }; // Xanh dương nhạt
+    case 'Intermediate':
+      return { bg: '#fff3e0', color: '#e65100' }; // Cam nhạt
+    case 'Advanced':
+      return { bg: '#f3e5f5', color: '#6a1b9a' }; // Tím nhạt
+    case 'Master':
+      return { bg: '#fce4ec', color: '#c2185b' }; // Hồng nhạt
+    default:
+      return { bg: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' };
+  }
+};
+
+interface ClassManagementProps {
+  user: User;
 }
 
-const mockClasses: Class[] = [
-  { id: '1', name: 'IELTS Beginner A1', campus: 'Cơ sở 1', level: 'Beginner', capacity: 20, currentStudents: 18, teacher: 'Trần Thị B', status: 'active', schedule: 'T2, T4, T6: 08:00-10:00' },
-  { id: '2', name: 'IELTS Beginner A2', campus: 'Cơ sở 1', level: 'Beginner', capacity: 20, currentStudents: 16, teacher: 'Nguyễn Văn C', status: 'active', schedule: 'T3, T5, T7: 10:00-12:00' },
-  { id: '3', name: 'IELTS Intermediate B1', campus: 'Cơ sở 2', level: 'Intermediate', capacity: 18, currentStudents: 15, teacher: 'Lê Thị D', status: 'active', schedule: 'T2, T4: 14:00-16:00' },
-  { id: '4', name: 'IELTS Advanced C1', campus: 'Cơ sở 2', level: 'Advanced', capacity: 15, currentStudents: 12, teacher: 'Phạm Văn E', status: 'active', schedule: 'T3, T5: 16:00-18:00' },
-  { id: '5', name: 'IELTS Master', campus: 'Cơ sở 3', level: 'Master', capacity: 12, currentStudents: 10, teacher: 'Hoàng Thị F', status: 'active', schedule: 'T2, T4, T6: 18:00-20:00' },
-];
-
-export default function ClassManagement() {
-  const [classes, setClasses] = useState<Class[]>(mockClasses);
+export default function ClassManagement({ user }: ClassManagementProps) {
+  const [classes, setClasses] = useState<ClassType[]>(initialClasses);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCampus, setFilterCampus] = useState('all');
   const [filterLevel, setFilterLevel] = useState('all');
   const [showModal, setShowModal] = useState(false);
-  const [editingClass, setEditingClass] = useState<Class | null>(null);
-  const [enrollingClass, setEnrollingClass] = useState<Class | null>(null);
+  const [editingClass, setEditingClass] = useState<ClassType | null>(null);
+  const [enrollingClass, setEnrollingClass] = useState<ClassType | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [selectedClass, setSelectedClass] = useState<ClassType | null>(null);
+
+  // Chỉ học vụ mới được thêm/sửa/xóa lớp học
+  const canModify = user.role === 'academic';
 
   const filteredClasses = classes.filter(classItem => {
     const matchSearch = classItem.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -42,60 +54,71 @@ export default function ClassManagement() {
     setShowModal(true);
   };
 
-  const handleEdit = (classItem: Class) => {
+  const handleEdit = (classItem: ClassType) => {
     setEditingClass(classItem);
     setShowModal(true);
   };
 
-  const handleEnroll = (classItem: Class) => {
+  const handleEnroll = (classItem: ClassType) => {
     setEnrollingClass(classItem);
+  };
+
+  const handleViewDetail = (classItem: ClassType) => {
+    setSelectedClass(classItem);
+    setViewMode('detail');
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-gray-900">Quản lý lớp học</h1>
-        <button
-          onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90"
-          style={{ backgroundColor: 'var(--brand-primary)' }}
-        >
-          <Plus className="w-4 h-4" />
-          Thêm lớp học
-        </button>
+        {canModify && (
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
+            <Plus className="w-4 h-4" />
+            Thêm lớp học
+          </button>
+        )}
       </div>
 
       {/* Search & Filter */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên lớp..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Tìm kiếm lớp học..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+            />
+          </div>
 
-        <div className="grid grid-cols-2 gap-4">
           <select
             value={filterCampus}
             onChange={(e) => setFilterCampus(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+            style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
           >
             <option value="all">Tất cả cơ sở</option>
-            <option value="Cơ sở 1">Cơ sở 1</option>
-            <option value="Cơ sở 2">Cơ sở 2</option>
-            <option value="Cơ sở 3">Cơ sở 3</option>
+            {campusNames.map(campus => (
+              <option key={campus} value={campus}>{campus}</option>
+            ))}
           </select>
 
           <select
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+            style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
           >
             <option value="all">Tất cả trình độ</option>
+            <option value="Foundation">Foundation</option>
             <option value="Beginner">Beginner</option>
             <option value="Intermediate">Intermediate</option>
             <option value="Advanced">Advanced</option>
@@ -108,13 +131,14 @@ export default function ClassManagement() {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
               <tr>
                 <th className="px-6 py-3 text-left text-gray-700">Tên lớp</th>
                 <th className="px-6 py-3 text-left text-gray-700">Cơ sở</th>
                 <th className="px-6 py-3 text-left text-gray-700">Trình độ</th>
-                <th className="px-6 py-3 text-left text-gray-700">Sức chứa</th>
-                <th className="px-6 py-3 text-left text-gray-700">Giáo viên</th>
+                <th className="px-6 py-3 text-left text-gray-700">Sĩ số</th>
+                <th className="px-6 py-3 text-left text-gray-700">Giảng viên</th>
+                <th className="px-6 py-3 text-left text-gray-700">Lịch học</th>
                 <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
                 <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
               </tr>
@@ -122,46 +146,57 @@ export default function ClassManagement() {
             <tbody className="divide-y divide-gray-200">
               {filteredClasses.map((classItem) => (
                 <tr key={classItem.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <p className="text-gray-900">{classItem.name}</p>
-                    <p className="text-gray-600 text-sm">{classItem.schedule}</p>
-                  </td>
+                  <td className="px-6 py-4 text-gray-900">{classItem.name}</td>
                   <td className="px-6 py-4 text-gray-600">{classItem.campus}</td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                    <span
+                      className="px-3 py-1 rounded-full text-sm"
+                      style={{ backgroundColor: getLevelColor(classItem.level).bg, color: getLevelColor(classItem.level).color }}
+                    >
                       {classItem.level}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-900">{classItem.currentStudents}/{classItem.capacity}</span>
-                    </div>
+                  <td className="px-6 py-4 text-gray-600">
+                    {classItem.totalStudents}/{classItem.maxStudents}
                   </td>
                   <td className="px-6 py-4 text-gray-600">{classItem.teacher}</td>
+                  <td className="px-6 py-4 text-gray-600 text-sm">{classItem.schedule}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex px-2 py-1 rounded text-sm ${
-                      classItem.status === 'active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {classItem.status === 'active' ? 'Đang học' : 'Kết thúc'}
+                    <span
+                      className="inline-flex px-3 py-1 rounded-full text-sm"
+                      style={{
+                        backgroundColor: classItem.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                        color: classItem.status === 'active' ? '#00b894' : '#d63031',
+                      }}
+                    >
+                      {classItem.status === 'active' ? 'Đang học' : 'Đã kết thúc'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => handleEnroll(classItem)}
-                      className="text-purple-600 hover:text-purple-700 mr-3"
-                      title="Ghi danh học viên"
-                    >
-                      <UserPlus className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(classItem)}
-                      className="text-blue-600 hover:text-blue-700"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {canModify && (
+                        <>
+                          <button
+                            onClick={() => handleEnroll(classItem)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(classItem)}
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => handleViewDetail(classItem)}
+                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -172,7 +207,7 @@ export default function ClassManagement() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <ClassModal
+        <ClassFormModal
           classItem={editingClass}
           onClose={() => setShowModal(false)}
           onSave={(classItem) => {
@@ -194,239 +229,40 @@ export default function ClassManagement() {
           onEnroll={(studentIds) => {
             setClasses(classes.map(c =>
               c.id === enrollingClass.id
-                ? { ...c, currentStudents: c.currentStudents + studentIds.length }
+                ? { ...c, totalStudents: c.totalStudents + studentIds.length }
                 : c
             ));
             setEnrollingClass(null);
           }}
         />
       )}
-    </div>
-  );
-}
 
-function ClassModal({ classItem, onClose, onSave }: {
-  classItem: Class | null;
-  onClose: () => void;
-  onSave: (classItem: Class) => void;
-}) {
-  const [formData, setFormData] = useState<Class>(
-    classItem || {
-      id: '',
-      name: '',
-      campus: 'Cơ sở 1',
-      level: 'Beginner',
-      capacity: 20,
-      currentStudents: 0,
-      teacher: '',
-      status: 'active',
-      schedule: '',
-    }
-  );
-
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-
-  // Danh sách học viên mẫu
-  const availableStudents = [
-    { id: '10', name: 'Nguyễn Văn X', level: 'Beginner' },
-    { id: '11', name: 'Trần Thị Y', level: 'Beginner' },
-    { id: '12', name: 'Lê Văn Z', level: 'Intermediate' },
-    { id: '13', name: 'Phạm Thị W', level: 'Beginner' },
-    { id: '14', name: 'Hoàng Văn Q', level: 'Advanced' },
-    { id: '15', name: 'Vũ Thị R', level: 'Beginner' },
-  ];
-
-  const toggleStudent = (studentId: string) => {
-    if (selectedStudents.includes(studentId)) {
-      setSelectedStudents(selectedStudents.filter(id => id !== studentId));
-    } else {
-      setSelectedStudents([...selectedStudents, studentId]);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Cập nhật số học viên hiện tại dựa trên số học viên được chọn
-    const updatedFormData = {
-      ...formData,
-      currentStudents: classItem ? formData.currentStudents : selectedStudents.length
-    };
-    onSave(updatedFormData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-gray-900">
-            {classItem ? 'Chỉnh sửa lớp học' : 'Thêm lớp học mới'}
-          </h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-gray-700 mb-2">Tên lớp</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">Cơ sở</label>
-              <select
-                value={formData.campus}
-                onChange={(e) => setFormData({ ...formData, campus: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Cơ sở 1">Cơ sở 1</option>
-                <option value="Cơ sở 2">Cơ sở 2</option>
-                <option value="Cơ sở 3">Cơ sở 3</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">Trình độ</label>
-              <select
-                value={formData.level}
-                onChange={(e) => setFormData({ ...formData, level: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Beginner">Beginner</option>
-                <option value="Intermediate">Intermediate</option>
-                <option value="Advanced">Advanced</option>
-                <option value="Master">Master</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">Sức chứa</label>
-              <input
-                type="number"
-                min="1"
-                value={formData.capacity}
-                onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">Giáo viên phụ trách</label>
-              <select
-                value={formData.teacher}
-                onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Chọn giáo viên...</option>
-                <option value="Trần Thị B">Trần Thị B</option>
-                <option value="Nguyễn Văn C">Nguyễn Văn C</option>
-                <option value="Lê Thị D">Lê Thị D</option>
-                <option value="Phạm Văn E">Phạm Văn E</option>
-                <option value="Hoàng Thị F">Hoàng Thị F</option>
-              </select>
-            </div>
-
-            <div className="col-span-2">
-              <label className="block text-gray-700 mb-2">Lịch học</label>
-              <input
-                type="text"
-                placeholder="VD: T2, T4, T6: 08:00-10:00"
-                value={formData.schedule}
-                onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">Trạng thái</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'completed' })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="active">Đang học</option>
-                <option value="completed">Kết thúc</option>
-              </select>
-            </div>
-
-            {/* Thêm học viên vào lớp */}
-            {!classItem && (
-              <div className="col-span-2">
-                <label className="block text-gray-700 mb-2">Thêm học viên ban đầu</label>
-                <div className="border border-gray-300 rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
-                  {availableStudents.map((student) => (
-                    <label
-                      key={student.id}
-                      className="flex items-center gap-3 p-2 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.includes(student.id)}
-                        onChange={() => toggleStudent(student.id)}
-                        className="w-4 h-4 text-blue-600 rounded"
-                      />
-                      <div className="flex-1 flex items-center justify-between">
-                        <span className="text-gray-900">{student.name}</span>
-                        <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                          {student.level}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-                {selectedStudents.length > 0 && (
-                  <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-blue-900 text-sm">
-                      Đã chọn {selectedStudents.length} học viên {' '}
-                      (Sức chứa còn lại: {formData.capacity - selectedStudents.length}/{formData.capacity})
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              {classItem ? 'Cập nhật' : 'Thêm mới'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-            >
-              Hủy
-            </button>
-          </div>
-        </form>
-      </div>
+      {/* Detail View */}
+      {viewMode === 'detail' && selectedClass && (
+        <DetailView
+          classItem={selectedClass}
+          onClose={() => setViewMode('list')}
+        />
+      )}
     </div>
   );
 }
 
 function EnrollModal({ classItem, onClose, onEnroll }: {
-  classItem: Class;
+  classItem: ClassType;
   onClose: () => void;
   onEnroll: (studentIds: string[]) => void;
 }) {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const availableStudents = [
-    { id: '10', name: 'Nguyễn Văn X', level: 'Beginner' },
-    { id: '11', name: 'Trần Thị Y', level: 'Beginner' },
-    { id: '12', name: 'Lê Văn Z', level: 'Beginner' },
-    { id: '13', name: 'Phạm Thị W', level: 'Beginner' },
-  ];
+  // Lấy học viên chưa có lớp hoặc đang học lớp khác
+  const availableStudents = students.filter(s => !s.currentClass || s.currentClass !== classItem.id);
+  
+  const filteredStudents = availableStudents.filter(s => 
+    s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.code?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const toggleStudent = (studentId: string) => {
     if (selectedStudents.includes(studentId)) {
@@ -438,48 +274,109 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
 
   const handleEnroll = () => {
     if (selectedStudents.length > 0) {
+      // Kiểm tra lớp đầy
+      const availableSlots = classItem.maxStudents - classItem.totalStudents;
+      if (selectedStudents.length > availableSlots) {
+        alert(`Lớp chỉ còn ${availableSlots} chỗ trống. Bạn đang chọn ${selectedStudents.length} học viên. Vui lòng giảm số lượng học viên hoặc chọn lớp khác.`);
+        return;
+      }
       onEnroll(selectedStudents);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-gray-900">Ghi danh học viên - {classItem.name}</h2>
           <p className="text-gray-600 text-sm mt-1">
-            Sức chứa: {classItem.currentStudents}/{classItem.capacity}
+            Sức chứa: {classItem.totalStudents}/{classItem.maxStudents} | Còn trống: {classItem.maxStudents - classItem.totalStudents} chỗ
           </p>
         </div>
 
         <div className="p-6">
-          <p className="text-gray-700 mb-4">Chọn học viên cần ghi danh:</p>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {availableStudents.map((student) => (
-              <label
-                key={student.id}
-                className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedStudents.includes(student.id)}
-                  onChange={() => toggleStudent(student.id)}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div className="flex-1">
-                  <p className="text-gray-900">{student.name}</p>
-                  <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
-                    {student.level}
-                  </span>
-                </div>
-              </label>
-            ))}
+          {/* Search */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Tìm theo tên hoặc mã học viên..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+              />
+            </div>
+          </div>
+
+          <p className="text-gray-700 mb-3">Chọn học viên cần ghi danh ({filteredStudents.length} khả dụng):</p>
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full">
+                <thead style={{ backgroundColor: 'var(--brand-primary-50)' }} className="sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4"
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedStudents(filteredStudents.map(s => s.id));
+                          } else {
+                            setSelectedStudents([]);
+                          }
+                        }}
+                        checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Mã HV</th>
+                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Họ tên</th>
+                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Email</th>
+                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Số ĐT</th>
+                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Lớp hiện tại</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredStudents.map((student) => (
+                    <tr
+                      key={student.id}
+                      className={`hover:bg-gray-50 cursor-pointer ${selectedStudents.includes(student.id) ? 'bg-blue-50' : ''}`}
+                      onClick={() => toggleStudent(student.id)}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudents.includes(student.id)}
+                          onChange={() => toggleStudent(student.id)}
+                          className="w-4 h-4"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 text-sm">{student.code}</td>
+                      <td className="px-4 py-3 text-gray-900">{student.fullName}</td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">{student.email}</td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">{student.phone}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {student.currentClass ? (
+                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                            Đã có lớp
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Chưa xếp lớp</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {selectedStudents.length > 0 && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <p className="text-blue-900">
-                Đã chọn {selectedStudents.length} học viên
+            <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+              <p style={{ color: 'var(--brand-primary)' }}>
+                ✓ Đã chọn {selectedStudents.length} học viên
               </p>
             </div>
           )}
@@ -488,8 +385,9 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
         <div className="p-6 border-t border-gray-200 flex gap-3">
           <button
             onClick={handleEnroll}
-            disabled={selectedStudents.length === 0}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            disabled={selectedStudents.length === 0 || selectedStudents.length > (classItem.maxStudents - classItem.totalStudents)}
+            className="flex-1 px-4 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            style={{ backgroundColor: selectedStudents.length === 0 ? '#ccc' : 'var(--brand-primary)' }}
           >
             Ghi danh ({selectedStudents.length})
           </button>
@@ -499,6 +397,128 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
           >
             Hủy
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailView({ classItem, onClose }: {
+  classItem: ClassType;
+  onClose: () => void;
+}) {
+  // Get students in this class from mock data
+  const classStudents = students.filter(s => s.currentClass === classItem.id);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-gray-900">Chi tiết lớp học</h2>
+              <p className="text-sm text-gray-600 mt-1">{classItem.name}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Class Information */}
+          <div>
+            <h3 className="text-gray-900 mb-4">Thông tin lớp học</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Cơ sở</p>
+                <p className="text-gray-900">{classItem.campus}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Trình độ</p>
+                <p className="text-gray-900">
+                  <span
+                    className="px-3 py-1 rounded-full text-sm"
+                    style={{ backgroundColor: getLevelColor(classItem.level).bg, color: getLevelColor(classItem.level).color }}
+                  >
+                    {classItem.level}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Giảng viên</p>
+                <p className="text-gray-900">{classItem.teacher}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Sĩ số</p>
+                <p className="text-gray-900">{classItem.totalStudents}/{classItem.maxStudents}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Lịch học</p>
+                <p className="text-gray-900">{classItem.schedule}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Trạng thái</p>
+                <span
+                  className="inline-flex px-3 py-1 rounded-full text-sm"
+                  style={{
+                    backgroundColor: classItem.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                    color: classItem.status === 'active' ? '#00b894' : '#d63031',
+                  }}
+                >
+                  {classItem.status === 'active' ? 'Đang học' : 'Đã kết thúc'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Student List */}
+          <div>
+            <h3 className="text-gray-900 mb-4">Danh sách học viên ({classStudents.length})</h3>
+            {classStudents.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                Chưa có học viên nào trong lớp
+              </div>
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+                    <tr>
+                      <th className="px-4 py-3 text-left text-gray-700">Mã HV</th>
+                      <th className="px-4 py-3 text-left text-gray-700">Họ tên</th>
+                      <th className="px-4 py-3 text-left text-gray-700">Email</th>
+                      <th className="px-4 py-3 text-left text-gray-700">Số điện thoại</th>
+                      <th className="px-4 py-3 text-left text-gray-700">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {classStudents.map((student) => (
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-900">{student.code}</td>
+                        <td className="px-4 py-3 text-gray-900">{student.fullName}</td>
+                        <td className="px-4 py-3 text-gray-600">{student.email}</td>
+                        <td className="px-4 py-3 text-gray-600">{student.phone}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex px-3 py-1 rounded-full text-sm"
+                            style={{
+                              backgroundColor: student.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                              color: student.status === 'active' ? '#00b894' : '#d63031',
+                            }}
+                          >
+                            {student.status === 'active' ? 'Đang học' : 'Đã nghỉ'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
