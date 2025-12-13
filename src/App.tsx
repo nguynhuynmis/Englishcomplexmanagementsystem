@@ -22,6 +22,7 @@ import ReportStatistics from './components/modules/ReportStatistics';
 import UserManagement from './components/modules/UserManagement';
 import CampusManagement from './components/modules/CampusManagement';
 import AttendanceManagement from './components/modules/AttendanceManagement';
+import { checkDatabaseInitialization } from './utils/initDatabase';
 
 export type UserRole = 'academic' | 'teacher' | 'student' | 'director';
 
@@ -44,13 +45,28 @@ export interface User {
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
+    // Initialize database and check for logged in user
+    const initialize = async () => {
+      try {
+        // Initialize database if needed
+        await checkDatabaseInitialization();
+        
+        // Check if user is logged in from localStorage
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+          setCurrentUser(JSON.parse(savedUser));
+        }
+      } catch (error) {
+        console.error('Initialization error:', error);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initialize();
   }, []);
 
   const handleLogin = (user: User) => {
@@ -62,6 +78,18 @@ function App() {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
   };
+
+  // Show loading while initializing database
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2baec0] mx-auto mb-4"></div>
+          <p className="text-gray-600">Đang khởi tạo hệ thống...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return (

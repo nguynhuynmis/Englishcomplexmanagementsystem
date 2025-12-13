@@ -1,80 +1,34 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { User, UserRole } from '../App';
-import { students, teachers, academicStaff, directors } from '../data/mockData';
+import { User } from '../App';
+import { authAPI } from '../utils/api';
 import logoHorizontal from 'figma:asset/dd0c38c752428dd137a2714c0bfc56ea8f160c00.png';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
 }
 
-// Mock users mapping from data
-const getAllUsers = () => {
-  const allUsers: any[] = [];
-  
-  // Add students
-  students.forEach(s => allUsers.push({
-    ...s,
-    role: 'student' as UserRole,
-    password: s.username // password same as username for demo
-  }));
-  
-  // Add teachers
-  teachers.forEach(t => allUsers.push({
-    ...t,
-    role: 'teacher' as UserRole,
-    password: t.username
-  }));
-  
-  // Add academic staff
-  academicStaff.forEach(a => allUsers.push({
-    ...a,
-    role: 'academic' as UserRole,
-    password: a.username
-  }));
-  
-  // Add directors
-  directors.forEach(d => allUsers.push({
-    ...d,
-    role: 'director' as UserRole,
-    password: d.username
-  }));
-  
-  return allUsers;
-};
-
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    const user = getAllUsers().find(
-      u => u.username === username && u.password === password
-    );
-
-    if (user) {
-      onLogin({
-        id: user.id,
-        username: user.username,
-        fullName: user.fullName,
-        role: user.role,
-        email: user.email,
-        phone: user.phone,
-        dateOfBirth: user.dateOfBirth,
-        gender: user.gender,
-        address: user.address,
-        parentName: user.parentName,
-        parentPhone: user.parentPhone,
-        bio: user.bio,
-        code: user.code,
-        avatar: user.avatar,
-      });
-    } else {
-      setError('Tên đăng nhập hoặc mật khẩu không đúng');
+    try {
+      const response = await authAPI.login(username, password);
+      
+      if (response.user) {
+        onLogin(response.user);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Tên đăng nhập hoặc mật khẩu không đúng');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -99,6 +53,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
               placeholder="Nhập tên đăng nhập"
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -112,6 +67,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
               placeholder="Nhập mật khẩu"
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -123,10 +79,11 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
           <button
             type="submit"
-            className="w-full text-white py-2 rounded-lg hover:opacity-90 transition-colors"
+            className="w-full text-white py-2 rounded-lg hover:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--brand-primary)' }}
+            disabled={isLoading}
           >
-            Đăng nhập
+            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
 
           <Link
@@ -137,6 +94,16 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             Quên mật khẩu?
           </Link>
         </form>
+
+        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+          <p className="text-sm text-gray-600 mb-2">Tài khoản demo:</p>
+          <div className="text-xs text-gray-500 space-y-1">
+            <p>• Academic: huongvtt / 123456</p>
+            <p>• Director: duccv / 123456</p>
+            <p>• Teacher: lanntm / 123456</p>
+            <p>• Student: huyenntk / 123456</p>
+          </div>
+        </div>
       </div>
     </div>
   );
