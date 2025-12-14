@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff, Lock } from 'lucide-react';
+import { authAPI } from '../utils/api';
 
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   userName: string;
+  userId: string; // Thêm userId prop
 }
 
-export default function ChangePasswordModal({ isOpen, onClose, userName }: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ isOpen, onClose, userName, userId }: ChangePasswordModalProps) {
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -54,13 +56,34 @@ export default function ChangePasswordModal({ isOpen, onClose, userName }: Chang
     if (!validateForm()) return;
 
     setIsLoading(true);
+    console.log('🔐 [Change Password] Starting password change for userId:', userId);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      console.log('🔐 [Change Password] Calling API...');
+      const response = await authAPI.changePassword(
+        userId, 
+        formData.currentPassword, 
+        formData.newPassword
+      );
+      
+      console.log('🔐 [Change Password] API Response:', response);
+      
+      if (response.success) {
+        setIsLoading(false);
+        alert('✅ Đổi mật khẩu thành công!');
+        handleClose();
+      } else {
+        setIsLoading(false);
+        setErrors({ currentPassword: response.message || 'Đổi mật khẩu thất bại' });
+        console.error('❌ [Change Password] Failed:', response.message);
+      }
+    } catch (error: any) {
       setIsLoading(false);
-      alert('✅ Đổi mật khẩu thành công!');
-      handleClose();
-    }, 1000);
+      const errorMsg = error?.message || 'Không thể kết nối đến server';
+      setErrors({ currentPassword: errorMsg });
+      console.error('❌ [Change Password] Error:', error);
+      alert('❌ Lỗi: ' + errorMsg);
+    }
   };
 
   const handleClose = () => {

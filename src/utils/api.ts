@@ -351,4 +351,10 @@ export const adminAPI = {
       body: JSON.stringify(data),
     });
   },
+  
+  resetData: async () => {
+    return apiRequest('/admin/reset-data', {
+      method: 'POST',
+    });
+  },
 };

@@ -25,7 +25,7 @@ import {
 import { User } from '../App';
 import NotificationPanel from './NotificationPanel';
 import ChangePasswordModal from './ChangePasswordModal';
-import logo3D from 'figma:asset/f622a5ebfd97d64a4d171316f8cb3731d4968ae8.png';
+import { logo3D } from '../utils/images';
 
 interface DashboardLayoutProps {
   user: User;
@@ -334,6 +334,7 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
         isOpen={changePasswordModalOpen}
         onClose={() => setChangePasswordModalOpen(false)}
         userName={user.fullName}
+        userId={user.id}
       />
     </div>
   );

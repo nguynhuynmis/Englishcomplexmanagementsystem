@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Mail, CheckCircle } from 'lucide-react';
-import logoHorizontal from 'figma:asset/dd0c38c752428dd137a2714c0bfc56ea8f160c00.png';
+import { logo } from '../utils/images';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -33,7 +33,7 @@ export default function ForgotPasswordPage() {
         <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <img src={logoHorizontal} alt="English Complex Logo" className="h-16" />
+              <img src={logo} alt="English Complex Logo" className="h-16" />
             </div>
           </div>
 
@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img src={logoHorizontal} alt="English Complex Logo" className="h-16" />
+            <img src={logo} alt="English Complex Logo" className="h-16" />
           </div>
           <h1 className="mb-2" style={{ color: 'var(--brand-primary-900)' }}>Quên mật khẩu?</h1>
           <p className="text-gray-600">Nhập email của bạn để nhận hướng dẫn đặt lại mật khẩu</p>

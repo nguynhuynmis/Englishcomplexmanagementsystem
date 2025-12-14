@@ -54,26 +54,31 @@ app.post("/make-server-e2861589/auth/login", async (c) => {
 // Change password endpoint
 app.post("/make-server-e2861589/auth/change-password", async (c) => {
   try {
+    console.log('🔐 [Server] Change password request received');
     const { userId, oldPassword, newPassword } = await c.req.json();
+    console.log('🔐 [Server] UserId:', userId);
     
     const users = await kv.get("users") || [];
     const userIndex = users.findIndex((u: any) => u.id === userId);
     
     if (userIndex === -1) {
-      return c.json({ error: "Không tìm thấy người dùng" }, 404);
+      console.error('❌ [Server] User not found:', userId);
+      return c.json({ success: false, message: "Không tìm thấy người dùng" }, 404);
     }
     
     if (users[userIndex].password !== oldPassword) {
-      return c.json({ error: "Mật khẩu cũ không đúng" }, 401);
+      console.error('❌ [Server] Wrong old password for user:', userId);
+      return c.json({ success: false, message: "Mật khẩu hiện tại không đúng" }, 401);
     }
     
     users[userIndex].password = newPassword;
     await kv.set("users", users);
     
-    return c.json({ message: "Đổi mật khẩu thành công" });
+    console.log('✅ [Server] Password changed successfully for user:', userId);
+    return c.json({ success: true, message: "Đổi mật khẩu thành công" });
   } catch (error) {
-    console.error("Change password error:", error);
-    return c.json({ error: "Đã xảy ra lỗi khi đổi mật khẩu" }, 500);
+    console.error("❌ [Server] Change password error:", error);
+    return c.json({ success: false, message: "Đã xảy ra lỗi khi đổi mật khẩu" }, 500);
   }
 });
 
@@ -820,6 +825,87 @@ app.post("/make-server-e2861589/admin/init-data", async (c) => {
   } catch (error) {
     console.error("Init data error:", error);
     return c.json({ error: "Đã xảy ra lỗi" }, 500);
+  }
+});
+
+// Reset database - Clear all data (like Spring Boot ddl-auto=create-drop)
+app.post("/make-server-e2861589/admin/reset-data", async (c) => {
+  try {
+    console.log('🔄 [Admin] Resetting database...');
+    
+    // Clear all collections
+    await kv.set("users", []);
+    await kv.set("students", []);
+    await kv.set("teachers", []);
+    await kv.set("campuses", []);
+    await kv.set("classes", []);
+    await kv.set("schedules", []);
+    await kv.set("notifications", []);
+    await kv.set("grades", []);
+    await kv.set("documents", []);
+    await kv.set("assignments", []);
+    await kv.set("feedback", []);
+    await kv.set("reset_codes", {});
+    
+    console.log('✅ [Admin] Database reset successfully!');
+    return c.json({ message: "Xóa toàn bộ dữ liệu thành công" });
+  } catch (error) {
+    console.error("❌ [Admin] Reset data error:", error);
+    return c.json({ error: "Đã xảy ra lỗi" }, 500);
+  }
+});
+
+// Debug endpoint - View all users (without passwords)
+app.get("/make-server-e2861589/debug/users", async (c) => {
+  try {
+    console.log('🔍 [Debug] Fetching all users...');
+    const users = await kv.get("users") || [];
+    
+    // Remove passwords for security
+    const safeUsers = users.map((u: any) => ({
+      id: u.id,
+      username: u.username,
+      fullName: u.fullName,
+      role: u.role,
+      email: u.email,
+      phone: u.phone,
+      code: u.code,
+      // ⚠️ NOT returning password for security!
+    }));
+    
+    console.log(`✅ [Debug] Found ${users.length} users`);
+    return c.json({ 
+      count: users.length,
+      users: safeUsers,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("❌ [Debug] Failed to get users:", error);
+    return c.json({ error: "Không thể lấy danh sách users" }, 500);
+  }
+});
+
+// Debug endpoint - View user by username
+app.get("/make-server-e2861589/debug/user/:username", async (c) => {
+  try {
+    const username = c.req.param('username');
+    console.log('🔍 [Debug] Looking for username:', username);
+    
+    const users = await kv.get("users") || [];
+    const user = users.find((u: any) => u.username === username);
+    
+    if (!user) {
+      return c.json({ error: `User '${username}' not found` }, 404);
+    }
+    
+    // Remove password
+    const { password: _, ...safeUser } = user;
+    
+    console.log('✅ [Debug] Found user:', user.fullName);
+    return c.json({ user: safeUser });
+  } catch (error) {
+    console.error("❌ [Debug] Failed to get user:", error);
+    return c.json({ error: "Không thể lấy thông tin user" }, 500);
   }
 });
 

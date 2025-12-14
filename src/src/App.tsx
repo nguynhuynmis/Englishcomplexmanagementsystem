@@ -52,6 +52,7 @@ function App() {
     const initialize = async () => {
       try {
         // Initialize database if needed
+        // TEMPORARY FIX: Comment này nếu gặp lỗi CORS với production images
         await checkDatabaseInitialization();
         
         // Check if user is logged in from localStorage

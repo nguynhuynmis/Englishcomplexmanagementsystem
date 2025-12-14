@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User } from '../App';
 import { authAPI } from '../utils/api';
-import logoHorizontal from 'figma:asset/dd0c38c752428dd137a2714c0bfc56ea8f160c00.png';
+import { logo } from '../utils/images';
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
@@ -37,7 +37,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img src={logoHorizontal} alt="English Complex Logo" className="h-16" />
+            <img src={logo} alt="English Complex Logo" className="h-16" />
           </div>
           <p className="text-gray-600">Let your feedback do the talking</p>
         </div>

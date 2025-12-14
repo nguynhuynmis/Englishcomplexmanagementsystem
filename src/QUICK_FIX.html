@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Quick Fix - English Complex</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #e0f5f8 0%, #f0f9fb 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #2baec0;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2baec0;
+        }
+        .section h2 {
+            color: #1e293b;
+            margin-bottom: 12px;
+            font-size: 20px;
+        }
+        .section p {
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        .button {
+            background: #2baec0;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-block;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .button:hover {
+            background: #239aa8;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(43, 174, 192, 0.3);
+        }
+        .button.secondary {
+            background: #64748b;
+        }
+        .button.secondary:hover {
+            background: #475569;
+        }
+        .code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .success {
+            background: #d1fae5;
+            border-left-color: #10b981;
+        }
+        .warning {
+            background: #fef3c7;
+            border-left-color: #f59e0b;
+        }
+        .info {
+            background: #dbeafe;
+            border-left-color: #3b82f6;
+        }
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .status.running {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        ol, ul {
+            margin-left: 20px;
+            color: #475569;
+        }
+        li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Quick Fix - English Complex</h1>
+        <p class="subtitle">Trang này sẽ giúp bạn fix lỗi CORS và khởi chạy app</p>
+
+        <div class="section success">
+            <span class="status running">✅ APP ĐANG CHẠY</span>
+            <h2>🎉 Tin tốt!</h2>
+            <p>Dựa trên console log, app của bạn <strong>ĐANG HOẠT ĐỘNG</strong>!</p>
+            <p>Vấn đề duy nhất là images từ production domain bị CORS block.</p>
+        </div>
+
+        <div class="section info">
+            <h2>🎯 Fix Ngay Trong 30 Giây</h2>
+            <p><strong>Bước 1:</strong> Click nút bên dưới để clear localStorage và reload</p>
+            
+            <button class="button" onclick="clearAndReload()">
+                🚀 Clear & Reload (FIX NGAY!)
+            </button>
+
+            <p style="margin-top: 16px; font-size: 14px; color: #64748b;">
+                ℹ️ Thao tác này sẽ xóa data cũ và reload trang. App sẽ khởi tạo lại với data mới.
+            </p>
+        </div>
+
+        <div class="section warning">
+            <h2>📋 Nếu vẫn không được</h2>
+            <p><strong>Option 2:</strong> Skip database initialization</p>
+            <p>Sửa file <code>/src/App.tsx</code>, tìm dòng ~55 và comment:</p>
+            <div class="code">// await checkDatabaseInitialization();</div>
+            <p>Sau đó restart dev server:</p>
+            <div class="code">npm run dev</div>
+        </div>
+
+        <div class="section">
+            <h2>🧪 Test Login</h2>
+            <p>Sau khi fix, test login với:</p>
+            <div class="code">Username: huongvtt<br>Password: 123456</div>
+        </div>
+
+        <div class="section">
+            <h2>📚 Tài liệu</h2>
+            <ul>
+                <li><a href="/START_HERE.md" style="color: #2baec0;">START_HERE.md</a> - Quick start</li>
+                <li><a href="/CONSOLE_LOG_FIX.md" style="color: #2baec0;">CONSOLE_LOG_FIX.md</a> - Chi tiết fix</li>
+                <li><a href="/DEBUG_STEPS.md" style="color: #2baec0;">DEBUG_STEPS.md</a> - Debug guide</li>
+            </ul>
+        </div>
+
+        <div class="section info">
+            <h2>ℹ️ Tại sao có lỗi CORS?</h2>
+            <p>App đang cố load images từ:</p>
+            <div class="code">https://englishcomplex.site/wp-content/uploads/...</div>
+            <p>Nhưng browser block vì khác origin với localhost:3000</p>
+            <p>Sau khi clear localStorage, app sẽ khởi tạo lại với data mới (không có production URLs)</p>
+        </div>
+
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+        <div style="text-align: center; color: #64748b;">
+            <p><strong>English Complex v8.0</strong></p>
+            <p>Hệ thống quản lý trung tâm Anh ngữ</p>
+        </div>
+    </div>
+
+    <script>
+        function clearAndReload() {
+            if (confirm('Xóa localStorage và reload trang?\n\nĐiều này sẽ xóa data cũ và app sẽ khởi tạo lại.')) {
+                console.log('🧹 Clearing localStorage...');
+                localStorage.clear();
+                
+                console.log('🔄 Reloading page...');
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:3000';
+                }, 500);
+            }
+        }
+
+        // Auto detect if running on localhost:3000
+        if (window.location.port === '3000' && window.location.hostname === 'localhost') {
+            console.log('✅ Detected dev server running');
+        } else {
+            console.log('ℹ️ Open this page from http://localhost:3000 for best results');
+        }
+    </script>
+</body>
+</html>
