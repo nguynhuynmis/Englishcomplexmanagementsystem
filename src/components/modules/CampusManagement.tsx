@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, MapPin, Phone, User, ArrowLeft } from 'lucide-react';
 import { campuses as mockDataCampuses } from '../../data/mockData';
+import { campusesAPI } from '../../utils/api';
 
 interface Campus {
   id: string;
@@ -26,10 +27,32 @@ const mockCampuses: Campus[] = mockDataCampuses.map(campus => ({
 type ViewMode = 'list' | 'detail' | 'create' | 'edit';
 
 export default function CampusManagement() {
-  const [campuses, setCampuses] = useState<Campus[]>(mockCampuses);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedCampus, setSelectedCampus] = useState<Campus | null>(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [CampusManagement] Loading data...');
+      const response = await campusesAPI.getAll();
+      console.log('✅ [CampusManagement] Data loaded:', response);
+      setCampuses(response.campuses || []);
+    } catch (err: any) {
+      console.error('❌ [CampusManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredCampuses = campuses.filter(campus =>
     campus.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -52,9 +75,15 @@ export default function CampusManagement() {
     setViewMode('create');
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Bạn có chắc muốn xóa cơ sở này?')) {
+  const handleDelete = async (id: string) => {
+    if (!confirm('Bạn có chắc muốn xóa cơ sở này?')) return;
+    try {
+      console.log('[CampusManagement] Deleting campus:', id);
+      await campusesAPI.delete(id);
       setCampuses(campuses.filter(c => c.id !== id));
+    } catch (err: any) {
+      console.error('[CampusManagement] Delete error:', err);
+      alert(`Lỗi: ${err.message || 'Không thể xóa cơ sở'}`);
     }
   };
 
@@ -63,14 +92,22 @@ export default function CampusManagement() {
     setSelectedCampus(null);
   };
 
-  const handleSave = (campus: Campus) => {
-    if (viewMode === 'edit' && selectedCampus) {
-      setCampuses(campuses.map(c => c.id === campus.id ? campus : c));
-    } else {
-      setCampuses([...campuses, { ...campus, id: Date.now().toString() }]);
+  const handleSave = async (campus: Campus) => {
+    try {
+      console.log('[CampusManagement] Saving campus:', campus);
+      if (viewMode === 'edit' && selectedCampus) {
+        await campusesAPI.update(campus.id, campus);
+        setCampuses(campuses.map(c => c.id === campus.id ? campus : c));
+      } else {
+        const response = await campusesAPI.create(campus);
+        setCampuses([...campuses, response.campus]);
+      }
+      setViewMode('list');
+      setSelectedCampus(null);
+    } catch (err: any) {
+      console.error('[CampusManagement] Save error:', err);
+      alert(`Lỗi: ${err.message || 'Không thể lưu cơ sở'}`);
     }
-    setViewMode('list');
-    setSelectedCampus(null);
   };
 
   // List View
@@ -89,7 +126,31 @@ export default function CampusManagement() {
           </button>
         </div>
 
-        {/* Search */}
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--brand-primary)' }}></div>
+            <p className="text-gray-600">Đang tải dữ liệu...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-red-600">⚠️</div>
+              <div>
+                <p className="text-red-800 font-medium">Lỗi tải dữ liệu</p>
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            </div>
+            <button onClick={loadData} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">Thử lại</button>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            {/* Search */}
         <div className="bg-white rounded-lg shadow p-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -185,6 +246,8 @@ export default function CampusManagement() {
             </div>
           ))}
         </div>
+          </>
+        )}
       </div>
     );
   }

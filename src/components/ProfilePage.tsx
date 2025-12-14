@@ -1,13 +1,16 @@
 import { useState, useRef } from 'react';
 import { User as UserIcon, Mail, Phone, MapPin, Calendar, Upload, Save, Edit2, X } from 'lucide-react';
 import { User } from '../App';
+import { studentsAPI, teachersAPI } from '../utils/api';
 
 interface ProfilePageProps {
   user: User;
+  onUpdate?: (updatedUser: Partial<User>) => void;
 }
 
-export default function ProfilePage({ user }: ProfilePageProps) {
+export default function ProfilePage({ user, onUpdate }: ProfilePageProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [avatar, setAvatar] = useState(user.avatar || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -34,13 +37,42 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     // Save profile data
-    console.log('Saving profile:', formData, avatar);
-    setIsEditing(false);
-    // Show success message
-    alert('Cập nhật thông tin thành công!');
+    const updatedUser: Partial<User> = {
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      dateOfBirth: formData.dateOfBirth,
+      gender: formData.gender,
+      address: formData.address,
+      parentName: formData.parentName,
+      parentPhone: formData.parentPhone,
+      bio: formData.bio,
+      avatar: avatar,
+    };
+
+    try {
+      if (user.role === 'student') {
+        await studentsAPI.update(user.id, updatedUser);
+      } else if (user.role === 'teacher') {
+        await teachersAPI.update(user.id, updatedUser);
+      }
+      // Update user in the app state
+      if (onUpdate) {
+        onUpdate(updatedUser);
+      }
+      // Show success message
+      alert('Cập nhật thông tin thành công!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Có lỗi xảy ra khi cập nhật thông tin. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+      setIsEditing(false);
+    }
   };
 
   const handleCancel = () => {
@@ -310,16 +342,27 @@ export default function ProfilePage({ user }: ProfilePageProps) {
               <div className="flex gap-4 mt-6">
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-6 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+                  disabled={saving}
+                  className="flex items-center gap-2 px-6 py-2 text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
-                  <Save className="w-4 h-4" />
-                  Lưu thay đổi
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Đang lưu...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Lưu thay đổi
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={handleCancel}
-                  className="flex items-center gap-2 px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  disabled={saving}
+                  className="flex items-center gap-2 px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="w-4 h-4" />
                   Hủy

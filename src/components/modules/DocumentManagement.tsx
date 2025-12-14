@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Download, FileText, Search, Upload, Bell, Users, MapPin, AlertCircle, Calendar, Trash2, Eye, EyeOff, Edit } from 'lucide-react';
 import { User } from '../../App';
+import { documentsAPI } from '../../utils/api';
 
 interface Document {
   id: string;

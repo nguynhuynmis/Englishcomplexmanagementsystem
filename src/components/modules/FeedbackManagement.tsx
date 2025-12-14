@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, MessageSquare, CheckCircle, ArrowLeft, Send, Clock, User as UserIcon } from 'lucide-react';
 import { User } from '../../App';
+import { feedbackAPI } from '../../utils/api';
 
 interface Feedback {
   id: string;
@@ -15,107 +16,6 @@ interface Feedback {
   responseDate?: string;
   respondedBy?: string;
 }
-
-const mockFeedbacks: Feedback[] = [
-  { 
-    id: '1', 
-    sender: 'Nguyên Thị Khánh Huyền', 
-    senderRole: 'Học viên', 
-    type: 'course', 
-    title: 'Đề nghị bổ sung tài liệu IELTS Writing', 
-    content: 'Em muốn có thêm tài liệu luyện IELTS Writing Task 2 về các chủ đề Environment và Technology. Hiện tại tài liệu trên hệ thống còn ít và không đa dạng lắm ạ. Em cảm ơn thầy cô!', 
-    status: 'responded', 
-    createdDate: '2024-12-01', 
-    response: 'Chào em Huyền! Cảm ơn em đã góp ý. Trung tâm đã cập nhật thêm 15 bài mẫu Writing Task 2 mới về các ch��� đề em yêu cầu vào mục Tài liệu. Em có thể tải xuống và tham khảo. Chúc em học tốt!', 
-    responseDate: '2024-12-02',
-    respondedBy: 'Vũ Thị Thanh Hương'
-  },
-  { 
-    id: '2', 
-    title: 'Câu hỏi về lịch học', 
-    content: 'Em muốn hỏi về lịch học bù vào thứ 7 ạ. Có phải em cần đăng ký trước không ạ?', 
-    status: 'responded', 
-    sender: 'Trần Văn Bình', 
-    senderRole: 'Giảng viên', 
-    type: 'technical', 
-    createdDate: '2024-12-08', 
-    response: 'Chào em Bình! Em có thể học bù vào buổi Thứ 7 tuần sau (21/12) cùng lớp IELTS Foundation - LB02 nhé. Em nhớ báo với giảng viên trước khi vào lớp.',
-    responseDate: '2024-12-08',
-    respondedBy: 'Vũ Thị Thanh Hương'
-  },
-  { 
-    id: '3', 
-    sender: 'Lê Hoàng Nam', 
-    senderRole: 'Học viên', 
-    type: 'academic', 
-    title: 'Xin nghỉ học buổi ngày 15/12', 
-    content: 'Em xin phép được nghỉ học buổi ngày 15/12/2024 vì lý do gia đình có việc đột xuất. Em sẽ học bù vào buổi khác theo sắp xếp của thầy cô ạ. Em cảm ơn!', 
-    status: 'responded', 
-    createdDate: '2024-12-07', 
-    response: 'Chào em Nam! Trung tâm đã ghi nhận đơn xin nghỉ của em. Em có thể học bù vào buổi Thứ 7 tuần sau (21/12) cùng lớp IELTS Foundation - LB02 nhé. Em nhớ báo với giảng viên trước khi vào lớp.',
-    responseDate: '2024-12-07',
-    respondedBy: 'Vũ Thị Thanh Hương'
-  },
-  { 
-    id: '4', 
-    sender: 'Phạm Thu Trang', 
-    senderRole: 'Học viên', 
-    type: 'course', 
-    title: 'Góp ý về tốc độ giảng dạy', 
-    content: 'Em thấy giảng viên dạy hơi nhanh, em còn nhiều phần chưa hiểu rõ. Em hy vọng thầy cô có thể giảng chậm hơn một chút để các em có thời gian tiếp thu tốt hơn ạ.', 
-    status: 'responded', 
-    createdDate: '2024-12-05', 
-    response: 'Cảm ơn em Trang đã góp ý! Trung tâm sẽ trao đổi với giảng viên để điều chỉnh tốc độ giảng dạy phù hợp hơn. Em cũng có thể hỏi giảng viên trực tiếp sau giờ học nếu có phần nào chưa rõ nhé!',
-    responseDate: '2024-12-06',
-    respondedBy: 'Vũ Thị Thanh Hương'
-  },
-  { 
-    id: '5', 
-    sender: 'Lê Thị Phương Anh', 
-    senderRole: 'Giảng viên', 
-    type: 'academic', 
-    title: 'Đề xuất tổ chức thêm lớp ôn thi', 
-    content: 'Em đề xuất trung tâm nên mở thêm lớp ôn thi IELTS intensive vào cuối tuần cho các học viên cần thi gấp. Hiện có nhiều học viên hỏi về lớp này.', 
-    status: 'pending', 
-    createdDate: '2024-12-09' 
-  },
-  { 
-    id: '6', 
-    sender: 'Nguyễn Thị Mai Lan', 
-    senderRole: 'Giảng viên', 
-    type: 'technical', 
-    title: 'Lỗi hệ thống nhập điểm', 
-    content: 'Em gặp lỗi khi nhập điểm cho lớp IELTS Beginner - LB02. Hệ thống báo lỗi "Failed to save" khi em nhấn nút Lưu điểm. Em đã thử nhiều lần nhưng vẫn không được. Nhờ bộ phận kỹ thuật kiểm tra giúp em với ạ!', 
-    status: 'responded', 
-    createdDate: '2024-12-03',
-    response: 'Chào cô Lan! Bộ phận kỹ thuật đã kiểm tra và khắc phục lỗi. Nguyên nhân do server database tạm thời quá tải. Hiện tại hệ thống đã hoạt động bình thường. Cô có thể thử lại nhé. Nếu còn gặp vấn đề, vui lòng liên hệ hotline: 0986922618.',
-    responseDate: '2024-12-03',
-    respondedBy: 'Vũ Thị Thanh Hương'
-  },
-  { 
-    id: '7', 
-    sender: 'Trần Minh Anh', 
-    senderRole: 'Giảng viên', 
-    type: 'course', 
-    title: 'Đề xuất cập nhật giáo trình Listening', 
-    content: 'Em thấy giáo trình Listening hiện tại chưa có nhiều bài về Cambridge IELTS 18-19. Em đề xuất nên bổ sung thêm các bài test mới nhất để học viên làm quen với format thi hiện tại.', 
-    status: 'responded', 
-    createdDate: '2024-12-04',
-    response: 'Cảm ơn thầy Anh đã góp ý! Trung tâm đã mua bản quyền Cambridge IELTS 18-19 và sẽ cập nhật vào hệ thống trong tuần này. Thầy sẽ nhận được thông báo khi tài liệu được upload lên.',
-    responseDate: '2024-12-05',
-    respondedBy: 'Vũ Thị Thanh Hương'
-  },
-  { 
-    id: '8', 
-    sender: 'Nguyễn Văn Đạt', 
-    senderRole: 'Giảng viên', 
-    type: 'academic', 
-    title: 'Đề nghị điều chỉnh lịch dạy tháng 1/2025', 
-    content: 'Em xin phép được điều chỉnh lịch dạy trong tháng 1/2025 vì có kế hoạch đi thi IELTS cá nhân. Em đề xuất hoán đổi với thầy Trần Minh Anh hoặc cô Lê Thị Phương Anh nếu được. Em cảm ơn!', 
-    status: 'pending', 
-    createdDate: '2024-12-10' 
-  },
-];
 
 const typeLabels = {
   academic: 'Học vụ',
@@ -133,14 +33,34 @@ interface FeedbackManagementProps {
   user: User;
 }
 
-type ViewMode = 'list' | 'detail' | 'create';
-
 export default function FeedbackManagement({ user }: FeedbackManagementProps) {
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>(mockFeedbacks);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [viewingFeedback, setViewingFeedback] = useState<Feedback | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [FeedbackManagement] Loading data...');
+      const response = await feedbackAPI.getAll();
+      console.log('✅ [FeedbackManagement] Data loaded:', response);
+      setFeedbacks(response.feedbacks || []);
+    } catch (err: any) {
+      console.error('❌ [FeedbackManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredFeedbacks = feedbacks.filter(feedback => {
     const matchStatus = filterStatus === 'all' || feedback.status === filterStatus;
@@ -161,17 +81,16 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
   const canCreate = user.role === 'student' || user.role === 'teacher'; // Academic staff cannot create feedback
 
   const handleViewDetail = (feedback: Feedback) => {
-    setSelectedFeedback(feedback);
-    setViewMode('detail');
+    setViewingFeedback(feedback);
   };
 
   const handleBackToList = () => {
-    setViewMode('list');
-    setSelectedFeedback(null);
+    setViewingFeedback(null);
+    setShowCreateModal(false);
   };
 
   const handleCreateNew = () => {
-    setViewMode('create');
+    setShowCreateModal(true);
   };
 
   const handleCreateFeedback = (feedback: Omit<Feedback, 'id'>) => {
@@ -180,7 +99,7 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
       id: Date.now().toString(),
     };
     setFeedbacks([newFeedback, ...feedbacks]);
-    setViewMode('list');
+    setShowCreateModal(false);
   };
 
   const handleRespondToFeedback = (feedbackId: string, response: string) => {
@@ -197,9 +116,9 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
     ));
     
     // Update selected feedback if viewing
-    if (selectedFeedback?.id === feedbackId) {
-      setSelectedFeedback({
-        ...selectedFeedback,
+    if (viewingFeedback?.id === feedbackId) {
+      setViewingFeedback({
+        ...viewingFeedback,
         status: 'responded',
         response,
         responseDate: new Date().toISOString().split('T')[0],
@@ -209,7 +128,7 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
   };
 
   // List View
-  if (viewMode === 'list') {
+  if (!viewingFeedback && !showCreateModal) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -341,10 +260,10 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
   }
 
   // Detail View
-  if (viewMode === 'detail' && selectedFeedback) {
+  if (viewingFeedback) {
     return (
       <FeedbackDetailView
-        feedback={selectedFeedback}
+        feedback={viewingFeedback}
         canRespond={canRespond}
         onBack={handleBackToList}
         onRespond={handleRespondToFeedback}
@@ -353,7 +272,7 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
   }
 
   // Create View
-  if (viewMode === 'create') {
+  if (showCreateModal) {
     return (
       <CreateFeedbackView
         user={user}
@@ -580,7 +499,7 @@ function CreateFeedbackView({
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-gray-900">Gửi phản hồi mới</h1>
+          <h1 className="text-gray-900">G��i phản hồi mới</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">

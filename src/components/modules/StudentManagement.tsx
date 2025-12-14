@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Eye, Search, Mail, Phone, Calendar, MapPin, User, ArrowLeft, GraduationCap, Trash2 } from 'lucide-react';
+import { Plus, Edit, Eye, Search, Mail, Phone, Calendar, MapPin, User, ArrowLeft, GraduationCap, Trash2, UserPlus } from 'lucide-react';
 import { students, classes } from '../../data/mockData';
 import type { Student } from '../../data/mockData';
 import StudentLearningProgress from './StudentLearningProgress';
@@ -7,7 +7,11 @@ import { studentsAPI, classesAPI } from '../../utils/api';
 
 type ViewMode = 'list' | 'detail' | 'create' | 'edit';
 
-export default function StudentManagement() {
+interface StudentManagementProps {
+  onNavigateToUserManagement?: () => void;
+}
+
+export default function StudentManagement({ onNavigateToUserManagement }: StudentManagementProps) {
   const [studentList, setStudentList] = useState<Student[]>([]);
   const [classList, setClassList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,14 +128,16 @@ export default function StudentManagement() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-gray-900">Quản lý học viên</h1>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: 'var(--brand-primary)' }}
-          >
-            <Plus className="w-4 h-4" />
-            Thêm học viên
-          </button>
+          {onNavigateToUserManagement && (
+            <button
+              onClick={onNavigateToUserManagement}
+              className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              <UserPlus className="w-5 h-5" />
+              Thêm học viên mới
+            </button>
+          )}
         </div>
 
         {/* Loading State */}
@@ -479,8 +485,8 @@ export default function StudentManagement() {
     );
   }
 
-  // Create/Edit View
-  if ((viewMode === 'create' || viewMode === 'edit') && (selectedStudent || viewMode === 'create')) {
+  // Edit View Only (Create removed - use UserManagement instead)
+  if (viewMode === 'edit' && selectedStudent) {
     return (
       <StudentFormView
         student={selectedStudent}

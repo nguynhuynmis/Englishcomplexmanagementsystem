@@ -87,7 +87,7 @@ export async function initializeDatabase() {
       feedback: [], // Empty initially
     };
 
-    await adminAPI.initializeData(initData);
+    await adminAPI.initData(initData);
 
     console.log('✅ Database initialized successfully!');
     console.log(`📊 Summary:`);

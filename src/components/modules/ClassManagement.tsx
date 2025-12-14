@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Users, UserPlus, Search, Eye, ArrowLeft } from 'lucide-react';
 import { User } from '../../App';
 import { students, classes as initialClasses, Class as ClassType, campusNames } from '../../data/mockData';
 import ClassFormModal from './ClassFormModal';
+import { classesAPI, studentsAPI } from '../../utils/api';
 
 type ViewMode = 'list' | 'detail' | 'edit' | 'create';
 
@@ -29,7 +30,9 @@ interface ClassManagementProps {
 }
 
 export default function ClassManagement({ user }: ClassManagementProps) {
-  const [classes, setClasses] = useState<ClassType[]>(initialClasses);
+  const [classes, setClasses] = useState<ClassType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCampus, setFilterCampus] = useState('all');
   const [filterLevel, setFilterLevel] = useState('all');
@@ -41,6 +44,26 @@ export default function ClassManagement({ user }: ClassManagementProps) {
 
   // Chỉ học vụ mới được thêm/sửa/xóa lớp học
   const canModify = user.role === 'academic';
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [ClassManagement] Loading data...');
+      const response = await classesAPI.getAll();
+      console.log('✅ [ClassManagement] Data loaded:', response);
+      setClasses(response.classes || []);
+    } catch (err: any) {
+      console.error('❌ [ClassManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredClasses = classes.filter(classItem => {
     const matchSearch = classItem.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -84,7 +107,38 @@ export default function ClassManagement({ user }: ClassManagementProps) {
         )}
       </div>
 
-      {/* Search & Filter */}
+      {/* Loading State */}
+      {loading && (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--brand-primary)' }}></div>
+          <p className="text-gray-600">Đang tải dữ liệu...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-red-600">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-red-800 font-medium">Lỗi tải dữ liệu</p>
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
+          <button onClick={loadData} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors">
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      {/* Content */}
+      {!loading && !error && (
+        <>
+          {/* Search & Filter */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
@@ -210,13 +264,21 @@ export default function ClassManagement({ user }: ClassManagementProps) {
         <ClassFormModal
           classItem={editingClass}
           onClose={() => setShowModal(false)}
-          onSave={(classItem) => {
-            if (editingClass) {
-              setClasses(classes.map(c => c.id === classItem.id ? classItem : c));
-            } else {
-              setClasses([...classes, { ...classItem, id: Date.now().toString() }]);
+          onSave={async (classItem) => {
+            try {
+              console.log('[ClassManagement] Saving class:', classItem);
+              if (editingClass) {
+                await classesAPI.update(classItem.id, classItem);
+                setClasses(classes.map(c => c.id === classItem.id ? classItem : c));
+              } else {
+                const response = await classesAPI.create(classItem);
+                setClasses([...classes, response.class]);
+              }
+              setShowModal(false);
+            } catch (err: any) {
+              console.error('[ClassManagement] Save error:', err);
+              alert(`Lỗi: ${err.message || 'Không thể lưu lớp học'}`);
             }
-            setShowModal(false);
           }}
         />
       )}
@@ -243,6 +305,8 @@ export default function ClassManagement({ user }: ClassManagementProps) {
           classItem={selectedClass}
           onClose={() => setViewMode('list')}
         />
+      )}
+        </>
       )}
     </div>
   );

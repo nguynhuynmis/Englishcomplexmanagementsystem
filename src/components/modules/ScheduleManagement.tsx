@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Download, Calendar as CalendarIcon, Clock, MapPin, User as UserIcon, BookOpen, ChevronLeft, ChevronRight, ClipboardCheck, ArrowLeft, CheckCircle, XCircle, AlertCircle, Grid, List, BarChart3 } from 'lucide-react';
 import { User } from '../../App';
 import { classes, students, schedules as initialSchedules, Schedule, teachers } from '../../data/mockData';
+import { schedulesAPI, classesAPI } from '../../utils/api';
 
 type ViewMode = 'list' | 'detail' | 'calendar';
 
@@ -10,7 +11,9 @@ interface ScheduleManagementProps {
 }
 
 export default function ScheduleManagement({ user }: ScheduleManagementProps) {
-  const [schedulesList, setSchedulesList] = useState<Schedule[]>(initialSchedules);
+  const [schedulesList, setSchedulesList] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState('');
   const [filterClass, setFilterClass] = useState('all');
   const [filterCampus, setFilterCampus] = useState('all');
@@ -19,6 +22,26 @@ export default function ScheduleManagement({ user }: ScheduleManagementProps) {
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [showAttendance, setShowAttendance] = useState(false);
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [ScheduleManagement] Loading data...');
+      const response = await schedulesAPI.getAll();
+      console.log('✅ [ScheduleManagement] Data loaded:', response);
+      setSchedulesList(response.schedules || []);
+    } catch (err: any) {
+      console.error('❌ [ScheduleManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter schedules
   const filteredSchedules = schedulesList.filter(schedule => {
@@ -103,206 +126,232 @@ export default function ScheduleManagement({ user }: ScheduleManagementProps) {
           </div>
         </div>
 
-        {/* Statistics */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <CalendarIcon className="w-5 h-5 text-blue-600" />
-              </div>
-              <span className="text-gray-600 text-sm">Tổng lịch</span>
-            </div>
-            <p className="text-2xl text-gray-900">{stats.total}</p>
-            <p className="text-xs text-gray-500 mt-1">Tổng số buổi học</p>
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--brand-primary)' }}></div>
+            <p className="text-gray-600">Đang tải dữ liệu...</p>
           </div>
+        )}
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div 
-                className="w-10 h-10 rounded-full flex items-center justify-center" 
-                style={{ backgroundColor: 'var(--brand-primary-100)' }}
-              >
-                <Clock className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
-              </div>
-              <span className="text-gray-600 text-sm">Sắp diễn ra</span>
-            </div>
-            <p className="text-2xl text-gray-900">{stats.scheduled}</p>
-            <p className="text-xs text-gray-500 mt-1">Chưa dạy/học</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <span className="text-gray-600 text-sm">Đã hoàn thành</span>
-            </div>
-            <p className="text-2xl text-gray-900">{stats.completed}</p>
-            <p className="text-xs text-gray-500 mt-1">Đã dạy/học xong</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <XCircle className="w-5 h-5 text-red-600" />
-              </div>
-              <span className="text-gray-600 text-sm">Đã hủy</span>
-            </div>
-            <p className="text-2xl text-gray-900">{stats.cancelled}</p>
-            <p className="text-xs text-gray-500 mt-1">Bị hủy bỏ</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-gray-700 mb-2">Ngày</label>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              />
-            </div>
-
-            {user.role !== 'student' && (
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-red-600">⚠️</div>
               <div>
-                <label className="block text-gray-700 mb-2">Lớp học</label>
-                <select
-                  value={filterClass}
-                  onChange={(e) => setFilterClass(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                >
-                  <option value="all">Tất cả lớp</option>
-                  {classes.map(cls => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
-                  ))}
-                </select>
+                <p className="text-red-800 font-medium">Lỗi tải dữ liệu</p>
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            </div>
+            <button onClick={loadData} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">Thử lại</button>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            {/* Statistics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                    <CalendarIcon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <span className="text-gray-600 text-sm">Tổng lịch</span>
+                </div>
+                <p className="text-2xl text-gray-900">{stats.total}</p>
+                <p className="text-xs text-gray-500 mt-1">Tổng số buổi học</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div 
+                    className="w-10 h-10 rounded-full flex items-center justify-center" 
+                    style={{ backgroundColor: 'var(--brand-primary-100)' }}
+                  >
+                    <Clock className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
+                  </div>
+                  <span className="text-gray-600 text-sm">Sắp diễn ra</span>
+                </div>
+                <p className="text-2xl text-gray-900">{stats.scheduled}</p>
+                <p className="text-xs text-gray-500 mt-1">Chưa dạy/học</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  </div>
+                  <span className="text-gray-600 text-sm">Đã hoàn thành</span>
+                </div>
+                <p className="text-2xl text-gray-900">{stats.completed}</p>
+                <p className="text-xs text-gray-500 mt-1">Đã dạy/học xong</p>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <span className="text-gray-600 text-sm">Đã hủy</span>
+                </div>
+                <p className="text-2xl text-gray-900">{stats.cancelled}</p>
+                <p className="text-xs text-gray-500 mt-1">Bị hủy bỏ</p>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-gray-700 mb-2">Ngày</label>
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  />
+                </div>
+
+                {user.role !== 'student' && (
+                  <div>
+                    <label className="block text-gray-700 mb-2">Lớp học</label>
+                    <select
+                      value={filterClass}
+                      onChange={(e) => setFilterClass(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                      style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                    >
+                      <option value="all">Tất cả lớp</option>
+                      {classes.map(cls => (
+                        <option key={cls.id} value={cls.id}>{cls.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-gray-700 mb-2">Cơ sở</label>
+                  <select
+                    value={filterCampus}
+                    onChange={(e) => setFilterCampus(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  >
+                    <option value="all">Tất cả cơ sở</option>
+                    <option value="Cơ sở Long Biên">Cơ sở Long Biên</option>
+                    <option value="Cơ sở Hai Bà Trưng">Cơ sở Hai Bà Trưng</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-2">Trạng thái</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  >
+                    <option value="all">Tất cả</option>
+                    <option value="scheduled">Sắp diễn ra</option>
+                    <option value="completed">Đã hoàn thành</option>
+                    <option value="cancelled">Đã hủy</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+                    <tr>
+                      <th className="px-6 py-3 text-left text-gray-700">Ngày</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Thời gian</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Lớp học</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Phòng học</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Giảng viên</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Cơ sở</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
+                      <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredSchedules.map((schedule) => (
+                      <tr key={schedule.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-gray-900">
+                          {new Date(schedule.date).toLocaleDateString('vi-VN')}
+                        </td>
+                        <td className="px-6 py-4 text-gray-600">
+                          {schedule.startTime} - {schedule.endTime}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                            {schedule.className}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-gray-600">{schedule.room}</td>
+                        <td className="px-6 py-4 text-gray-600">{schedule.teacher}</td>
+                        <td className="px-6 py-4 text-gray-600">{schedule.campus}</td>
+                        <td className="px-6 py-4">
+                          {schedule.status === 'scheduled' && (
+                            <span className="inline-flex px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                              Sắp diễn ra
+                            </span>
+                          )}
+                          {schedule.status === 'completed' && (
+                            <span className="inline-flex px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--pastel-green-light)', color: '#00b894' }}>
+                              Đã hoàn thành
+                            </span>
+                          )}
+                          {schedule.status === 'cancelled' && (
+                            <span className="inline-flex px-3 py-1 rounded-full text-sm" style={{ backgroundColor: '#fee', color: '#d63031' }}>
+                              Đã hủy
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleViewDetail(schedule)}
+                              className="px-3 py-1 text-sm text-white rounded-lg hover:opacity-90"
+                              style={{ backgroundColor: 'var(--brand-primary)' }}
+                            >
+                              Xem chi tiết
+                            </button>
+                            {/* Button điểm danh cho lịch sắp diễn ra - chỉ giáo viên */}
+                            {user.role === 'teacher' && schedule.status === 'scheduled' && (
+                              <button
+                                onClick={() => {
+                                  setSelectedSchedule(schedule);
+                                  setViewMode('detail');
+                                  setTimeout(() => setShowAttendance(true), 100);
+                                }}
+                                className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded-lg hover:opacity-90"
+                                style={{ backgroundColor: '#00b894' }}
+                              >
+                                <ClipboardCheck className="w-4 h-4" />
+                                Điểm danh
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {filteredSchedules.length === 0 && (
+              <div className="bg-white rounded-lg shadow p-12 text-center">
+                <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-gray-500">Không tìm thấy lịch học nào</p>
               </div>
             )}
-
-            <div>
-              <label className="block text-gray-700 mb-2">Cơ sở</label>
-              <select
-                value={filterCampus}
-                onChange={(e) => setFilterCampus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả cơ sở</option>
-                <option value="Cơ sở Long Biên">Cơ sở Long Biên</option>
-                <option value="Cơ sở Hai Bà Trưng">Cơ sở Hai Bà Trưng</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">Trạng thái</label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả</option>
-                <option value="scheduled">Sắp diễn ra</option>
-                <option value="completed">Đã hoàn thành</option>
-                <option value="cancelled">Đã hủy</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-gray-700">Ngày</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Thời gian</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Lớp học</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Phòng học</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Giảng viên</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Cơ sở</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
-                  <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredSchedules.map((schedule) => (
-                  <tr key={schedule.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-gray-900">
-                      {new Date(schedule.date).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {schedule.startTime} - {schedule.endTime}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                        {schedule.className}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{schedule.room}</td>
-                    <td className="px-6 py-4 text-gray-600">{schedule.teacher}</td>
-                    <td className="px-6 py-4 text-gray-600">{schedule.campus}</td>
-                    <td className="px-6 py-4">
-                      {schedule.status === 'scheduled' && (
-                        <span className="inline-flex px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                          Sắp diễn ra
-                        </span>
-                      )}
-                      {schedule.status === 'completed' && (
-                        <span className="inline-flex px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--pastel-green-light)', color: '#00b894' }}>
-                          Đã hoàn thành
-                        </span>
-                      )}
-                      {schedule.status === 'cancelled' && (
-                        <span className="inline-flex px-3 py-1 rounded-full text-sm" style={{ backgroundColor: '#fee', color: '#d63031' }}>
-                          Đã hủy
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleViewDetail(schedule)}
-                          className="px-3 py-1 text-sm text-white rounded-lg hover:opacity-90"
-                          style={{ backgroundColor: 'var(--brand-primary)' }}
-                        >
-                          Xem chi tiết
-                        </button>
-                        {/* Button điểm danh cho lịch sắp diễn ra - chỉ giáo viên */}
-                        {user.role === 'teacher' && schedule.status === 'scheduled' && (
-                          <button
-                            onClick={() => {
-                              setSelectedSchedule(schedule);
-                              setViewMode('detail');
-                              setTimeout(() => setShowAttendance(true), 100);
-                            }}
-                            className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded-lg hover:opacity-90"
-                            style={{ backgroundColor: '#00b894' }}
-                          >
-                            <ClipboardCheck className="w-4 h-4" />
-                            Điểm danh
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {filteredSchedules.length === 0 && (
-          <div className="bg-white rounded-lg shadow p-12 text-center">
-            <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-gray-500">Không tìm thấy lịch học nào</p>
-          </div>
+          </>
         )}
       </div>
     );

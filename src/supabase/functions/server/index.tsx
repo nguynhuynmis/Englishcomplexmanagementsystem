@@ -8,6 +8,38 @@ const app = new Hono();
 // Enable logger
 app.use('*', logger(console.log));
 
+// ========================================
+// HELPER FUNCTIONS
+// ========================================
+
+// Auto-generate sequential student code (HV001, HV002, ...)
+async function generateStudentCode(): Promise<string> {
+  const students = await kv.get("students") || [];
+  const existingCodes = students
+    .map((s: any) => s.code)
+    .filter((code: string) => code && code.startsWith('HV'))
+    .map((code: string) => parseInt(code.replace('HV', '')))
+    .filter((num: number) => !isNaN(num));
+  
+  const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0;
+  const nextNumber = maxNumber + 1;
+  return `HV${nextNumber.toString().padStart(3, '0')}`;
+}
+
+// Auto-generate sequential teacher code (GV001, GV002, ...)
+async function generateTeacherCode(): Promise<string> {
+  const teachers = await kv.get("teachers") || [];
+  const existingCodes = teachers
+    .map((t: any) => t.code)
+    .filter((code: string) => code && code.startsWith('GV'))
+    .map((code: string) => parseInt(code.replace('GV', '')))
+    .filter((num: number) => !isNaN(num));
+  
+  const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0;
+  const nextNumber = maxNumber + 1;
+  return `GV${nextNumber.toString().padStart(3, '0')}`;
+}
+
 // Enable CORS for all routes and methods
 app.use(
   "/*",
@@ -215,6 +247,307 @@ app.delete("/make-server-e2861589/campuses/:id", async (c) => {
     return c.json({ message: "Xóa cơ sở thành công" });
   } catch (error) {
     console.error("Delete campus error:", error);
+    return c.json({ error: "Đã xảy ra lỗi" }, 500);
+  }
+});
+
+// ========================================
+// USERS (for UserManagement module)
+// ========================================
+
+// Get all users
+app.get("/make-server-e2861589/users", async (c) => {
+  try {
+    console.log('🔄 [Server] GET /users - Fetching all users...');
+    const usersData = await kv.get("users") || [];
+    
+    // Remove passwords from response
+    const users = usersData.map((u: any) => {
+      const { password, ...userWithoutPassword } = u;
+      return userWithoutPassword;
+    });
+    
+    console.log(`✅ [Server] Found ${users.length} users`);
+    return c.json({ users });
+  } catch (error) {
+    console.error("❌ [Server] Get users error:", error);
+    return c.json({ error: "Không thể tải danh sách người dùng" }, 500);
+  }
+});
+
+// Get user by ID
+app.get("/make-server-e2861589/users/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    console.log(`🔄 [Server] GET /users/${id}`);
+    
+    const users = await kv.get("users") || [];
+    const user = users.find((u: any) => u.id === id);
+    
+    if (!user) {
+      console.error(`❌ [Server] User not found: ${id}`);
+      return c.json({ error: "Không tìm thấy người dùng" }, 404);
+    }
+    
+    const { password, ...userWithoutPassword } = user;
+    console.log(`✅ [Server] User found: ${userWithoutPassword.username}`);
+    return c.json({ user: userWithoutPassword });
+  } catch (error) {
+    console.error("❌ [Server] Get user error:", error);
+    return c.json({ error: "Đã xảy ra lỗi" }, 500);
+  }
+});
+
+// Create new user (with auto student/teacher creation)
+app.post("/make-server-e2861589/users", async (c) => {
+  try {
+    const data = await c.req.json();
+    console.log('🔄 [Server] POST /users - Creating new user:', data.username, 'Role:', data.role);
+    
+    const { studentData, teacherData, ...userData } = data;
+    
+    // Generate ID
+    const newUser = {
+      id: `U${Date.now()}`,
+      ...userData,
+      createdAt: new Date().toISOString(),
+    };
+    
+    // Add to users list
+    const users = await kv.get("users") || [];
+    
+    // Check if username already exists
+    if (users.some((u: any) => u.username === userData.username)) {
+      console.error('❌ [Server] Username already exists:', userData.username);
+      return c.json({ error: "Tên đăng nhập đã tồn tại" }, 400);
+    }
+    
+    users.push(newUser);
+    await kv.set("users", users);
+    console.log(`✅ [Server] User created: ${newUser.id} (${newUser.username})`);
+    
+    // If role is student, create student record
+    if (userData.role === 'student' && studentData) {
+      console.log('📚 [Server] Creating student record for user:', newUser.id);
+      const students = await kv.get("students") || [];
+      const newStudent = {
+        id: `S${Date.now()}`,
+        userId: newUser.id,
+        code: await generateStudentCode(),
+        fullName: userData.fullName,
+        dateOfBirth: studentData.dateOfBirth,
+        gender: studentData.gender,
+        address: studentData.address || '',
+        email: userData.email,
+        phone: userData.phone,
+        parentName: studentData.parentName || '',
+        parentPhone: studentData.parentPhone || '',
+        class: studentData.className,
+        enrollmentDate: studentData.enrollmentDate,
+        status: userData.status,
+        tuitionFee: studentData.tuitionFee || 0,
+        campus: studentData.campus,
+        createdAt: new Date().toISOString(),
+      };
+      students.push(newStudent);
+      await kv.set("students", students);
+      console.log(`✅ [Server] Student created: ${newStudent.id} (${newStudent.code})`);
+    }
+    
+    // If role is teacher, create teacher record
+    if (userData.role === 'teacher' && teacherData) {
+      console.log('👨‍🏫 [Server] Creating teacher record for user:', newUser.id);
+      const teachers = await kv.get("teachers") || [];
+      const newTeacher = {
+        id: `T${Date.now()}`,
+        userId: newUser.id,
+        code: await generateTeacherCode(),
+        fullName: userData.fullName,
+        email: userData.email,
+        phone: userData.phone,
+        specialization: teacherData.specialization,
+        status: userData.status,
+        salary: teacherData.salary || 0,
+        startDate: teacherData.startDate,
+        campus: teacherData.campus,
+        createdAt: new Date().toISOString(),
+      };
+      teachers.push(newTeacher);
+      await kv.set("teachers", teachers);
+      console.log(`✅ [Server] Teacher created: ${newTeacher.id} (${newTeacher.code})`);
+    }
+    
+    // Return without password
+    const { password, ...userWithoutPassword } = newUser;
+    return c.json({ user: userWithoutPassword });
+  } catch (error) {
+    console.error("❌ [Server] Create user error:", error);
+    return c.json({ error: "Không thể tạo người dùng: " + error.message }, 500);
+  }
+});
+
+// Update user
+app.put("/make-server-e2861589/users/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const updates = await c.req.json();
+    console.log(`🔄 [Server] PUT /users/${id} - Updating user`);
+    
+    const users = await kv.get("users") || [];
+    const index = users.findIndex((u: any) => u.id === id);
+    
+    if (index === -1) {
+      console.error(`❌ [Server] User not found: ${id}`);
+      return c.json({ error: "Không tìm thấy người dùng" }, 404);
+    }
+    
+    // Update user (keep password if not provided)
+    const { password, studentData, teacherData, ...userData } = updates;
+    users[index] = {
+      ...users[index],
+      ...userData,
+      updatedAt: new Date().toISOString(),
+    };
+    
+    // Only update password if provided
+    if (password) {
+      users[index].password = password;
+    }
+    
+    await kv.set("users", users);
+    console.log(`✅ [Server] User updated: ${id}`);
+    
+    // Update corresponding student/teacher record if data provided
+    if (users[index].role === 'student' && studentData) {
+      const students = await kv.get("students") || [];
+      const studentIndex = students.findIndex((s: any) => s.userId === id);
+      if (studentIndex !== -1) {
+        students[studentIndex] = {
+          ...students[studentIndex],
+          ...studentData,
+          fullName: userData.fullName || students[studentIndex].fullName,
+          email: userData.email || students[studentIndex].email,
+          phone: userData.phone || students[studentIndex].phone,
+          updatedAt: new Date().toISOString(),
+        };
+        await kv.set("students", students);
+        console.log(`✅ [Server] Student record updated`);
+      }
+    }
+    
+    if (users[index].role === 'teacher' && teacherData) {
+      const teachers = await kv.get("teachers") || [];
+      const teacherIndex = teachers.findIndex((t: any) => t.userId === id);
+      if (teacherIndex !== -1) {
+        teachers[teacherIndex] = {
+          ...teachers[teacherIndex],
+          ...teacherData,
+          fullName: userData.fullName || teachers[teacherIndex].fullName,
+          email: userData.email || teachers[teacherIndex].email,
+          phone: userData.phone || teachers[teacherIndex].phone,
+          updatedAt: new Date().toISOString(),
+        };
+        await kv.set("teachers", teachers);
+        console.log(`✅ [Server] Teacher record updated`);
+      }
+    }
+    
+    const { password: _, ...userWithoutPassword } = users[index];
+    return c.json({ user: userWithoutPassword });
+  } catch (error) {
+    console.error("❌ [Server] Update user error:", error);
+    return c.json({ error: "Đã xảy ra lỗi khi cập nhật" }, 500);
+  }
+});
+
+// Delete user
+app.delete("/make-server-e2861589/users/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    console.log(`🔄 [Server] DELETE /users/${id}`);
+    
+    const users = await kv.get("users") || [];
+    const user = users.find((u: any) => u.id === id);
+    
+    if (!user) {
+      console.error(`❌ [Server] User not found: ${id}`);
+      return c.json({ error: "Không tìm thấy người dùng" }, 404);
+    }
+    
+    // Delete user
+    const filtered = users.filter((u: any) => u.id !== id);
+    await kv.set("users", filtered);
+    console.log(`✅ [Server] User deleted: ${id}`);
+    
+    // Delete corresponding student/teacher record
+    if (user.role === 'student') {
+      const students = await kv.get("students") || [];
+      const filteredStudents = students.filter((s: any) => s.userId !== id);
+      await kv.set("students", filteredStudents);
+      console.log(`✅ [Server] Student record deleted`);
+    }
+    
+    if (user.role === 'teacher') {
+      const teachers = await kv.get("teachers") || [];
+      const filteredTeachers = teachers.filter((t: any) => t.userId !== id);
+      await kv.set("teachers", filteredTeachers);
+      console.log(`✅ [Server] Teacher record deleted`);
+    }
+    
+    return c.json({ message: "Xóa người dùng thành công" });
+  } catch (error) {
+    console.error("❌ [Server] Delete user error:", error);
+    return c.json({ error: "Đã xảy ra lỗi" }, 500);
+  }
+});
+
+// Update user status
+app.patch("/make-server-e2861589/users/:id/status", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const { status } = await c.req.json();
+    console.log(`🔄 [Server] PATCH /users/${id}/status - Setting status to:`, status);
+    
+    const users = await kv.get("users") || [];
+    const index = users.findIndex((u: any) => u.id === id);
+    
+    if (index === -1) {
+      return c.json({ error: "Không tìm thấy người dùng" }, 404);
+    }
+    
+    users[index].status = status;
+    await kv.set("users", users);
+    console.log(`✅ [Server] User status updated: ${id} -> ${status}`);
+    
+    const { password, ...userWithoutPassword } = users[index];
+    return c.json({ user: userWithoutPassword });
+  } catch (error) {
+    console.error("❌ [Server] Update status error:", error);
+    return c.json({ error: "Đã xảy ra lỗi" }, 500);
+  }
+});
+
+// Reset user password
+app.post("/make-server-e2861589/users/:id/reset-password", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const { newPassword } = await c.req.json();
+    console.log(`🔄 [Server] POST /users/${id}/reset-password`);
+    
+    const users = await kv.get("users") || [];
+    const index = users.findIndex((u: any) => u.id === id);
+    
+    if (index === -1) {
+      return c.json({ error: "Không tìm thấy người dùng" }, 404);
+    }
+    
+    users[index].password = newPassword;
+    await kv.set("users", users);
+    console.log(`✅ [Server] Password reset for user: ${id}`);
+    
+    return c.json({ message: "Đặt lại mật khẩu thành công" });
+  } catch (error) {
+    console.error("❌ [Server] Reset password error:", error);
     return c.json({ error: "Đã xảy ra lỗi" }, 500);
   }
 });

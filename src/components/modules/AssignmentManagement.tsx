@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Eye, Edit, Download, Upload } from 'lucide-react';
 import { User } from '../../App';
+import { assignmentsAPI } from '../../utils/api';
 
 interface Assignment {
   id: string;
@@ -45,14 +46,36 @@ interface AssignmentManagementProps {
 }
 
 export default function AssignmentManagement({ user }: AssignmentManagementProps) {
-  const [assignments, setAssignments] = useState<Assignment[]>(mockAssignments);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
   const [viewingSubmissions, setViewingSubmissions] = useState<Assignment | null>(null);
-  const [submittingAssignment, setSubmittingAssignment] = useState<Assignment | null>(null); // Thêm
+  const [submittingAssignment, setSubmittingAssignment] = useState<Assignment | null>(null);
 
   const isTeacher = user.role === 'teacher';
   const isStudent = user.role === 'student';
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [AssignmentManagement] Loading data...');
+      const response = await assignmentsAPI.getAll();
+      console.log('✅ [AssignmentManagement] Data loaded:', response);
+      setAssignments(response.assignments || []);
+    } catch (err: any) {
+      console.error('❌ [AssignmentManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">

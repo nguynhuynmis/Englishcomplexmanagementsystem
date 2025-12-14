@@ -1,13 +1,21 @@
-import { useState } from 'react';
-import { Plus, Edit, Eye, Search, Mail, Phone, Award, BookOpen, ArrowLeft, GraduationCap, Calendar, Upload, FileText, CheckCircle, Download, X, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Edit, Eye, Search, Mail, Phone, Award, BookOpen, ArrowLeft, GraduationCap, Calendar, Upload, FileText, CheckCircle, Download, X, Trash2, UserPlus } from 'lucide-react';
 import { teachers, classes } from '../../data/mockData';
 import type { Teacher } from '../../data/mockData';
+import { teachersAPI, classesAPI } from '../../utils/api';
 
 type ViewMode = 'list' | 'detail' | 'create' | 'edit';
 type UploadType = 'ielts' | 'toeic' | 'toefl' | 'certificate';
 
-export default function TeacherManagement() {
-  const [teacherList, setTeacherList] = useState<Teacher[]>(teachers);
+interface TeacherManagementProps {
+  onNavigateToUserManagement?: () => void;
+}
+
+export default function TeacherManagement({ onNavigateToUserManagement }: TeacherManagementProps) {
+  const [teacherList, setTeacherList] = useState<Teacher[]>([]);
+  const [classList, setClassList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCampus, setFilterCampus] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -16,6 +24,30 @@ export default function TeacherManagement() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadType, setUploadType] = useState<UploadType>('ielts');
   const [certificateName, setCertificateName] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [TeacherManagement] Loading data...');
+      const [teachersResponse, classesResponse] = await Promise.all([
+        teachersAPI.getAll(),
+        classesAPI.getAll()
+      ]);
+      console.log('✅ [TeacherManagement] Data loaded:', { teachersResponse, classesResponse });
+      setTeacherList(teachersResponse.teachers || []);
+      setClassList(classesResponse.classes || []);
+    } catch (err: any) {
+      console.error('❌ [TeacherManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredTeachers = teacherList.filter(teacher => {
     const matchSearch = teacher.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -57,7 +89,7 @@ export default function TeacherManagement() {
   };
 
   const handleDelete = (teacher: Teacher) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa giảng viên ${teacher.fullName}?`)) {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa giáo viên ${teacher.fullName}?`)) {
       setTeacherList(teacherList.filter(t => t.id !== teacher.id));
       setViewMode('list');
       setSelectedTeacher(null);
@@ -69,15 +101,17 @@ export default function TeacherManagement() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-gray-900">Quản lý giảng viên</h1>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: 'var(--brand-primary)' }}
-          >
-            <Plus className="w-4 h-4" />
-            Thêm giảng viên
-          </button>
+          <h1 className="text-gray-900">Quản lý giáo viên</h1>
+          {onNavigateToUserManagement && (
+            <button
+              onClick={onNavigateToUserManagement}
+              className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              <UserPlus className="w-5 h-5" />
+              Thêm giáo viên mới
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -213,7 +247,7 @@ export default function TeacherManagement() {
         {filteredTeachers.length === 0 && (
           <div className="bg-white rounded-lg shadow p-12 text-center">
             <GraduationCap className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-gray-500">Không tìm thấy giảng viên nào</p>
+            <p className="text-gray-500">Không tìm thấy giáo viên nào</p>
           </div>
         )}
       </div>
@@ -481,7 +515,7 @@ export default function TeacherManagement() {
                 if (teacherClasses.length === 0) {
                   return (
                     <p className="text-gray-500 text-center py-8 bg-gray-50 rounded-lg">
-                      Giảng viên hiện không phụ trách lớp nào
+                      Giáo viên hiện không phụ trách lớp nào
                     </p>
                   );
                 }
@@ -539,8 +573,8 @@ export default function TeacherManagement() {
     );
   }
 
-  // Create/Edit View
-  if ((viewMode === 'create' || viewMode === 'edit') && (selectedTeacher || viewMode === 'create')) {
+  // Edit View Only (Create removed - use UserManagement instead)
+  if (viewMode === 'edit' && selectedTeacher) {
     return (
       <TeacherFormView
         teacher={selectedTeacher}

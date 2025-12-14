@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Eye, Search, Shield, ArrowLeft, Save, X as XIcon, Users, Key, Trash2 } from 'lucide-react';
-import { students, teachers, academicStaff, directors } from '../../data/mockData';
+import { usersAPI } from '../../utils/api';
+import UserFormView from './UserFormView';
 
 interface SystemUser {
   id: string;
@@ -33,7 +34,7 @@ interface Role {
 
 const roleLabels = {
   academic: 'Bộ phận Học vụ',
-  teacher: 'Giảng viên',
+  teacher: 'Giáo viên',
   student: 'Học viên',
   director: 'Ban Giám đốc',
 };
@@ -147,68 +148,50 @@ const ALL_SYSTEM_PERMISSIONS = [
 type ViewMode = 'list' | 'detail' | 'edit' | 'create';
 type TabMode = 'users' | 'roles';
 
-export default function UserManagement() {
-  // Combine all users from mock data
-  const getAllUsers = (): SystemUser[] => {
-    const allUsers: SystemUser[] = [];
-    
-    students.forEach(s => allUsers.push({
-      id: s.id,
-      code: s.code,
-      username: s.username,
-      fullName: s.fullName,
-      role: 'student',
-      campus: s.campus,
-      status: s.status,
-      email: s.email,
-      phone: s.phone,
-    }));
-    
-    teachers.forEach(t => allUsers.push({
-      id: t.id,
-      code: t.code,
-      username: t.username,
-      fullName: t.fullName,
-      role: 'teacher',
-      campus: t.campus,
-      status: t.status,
-      email: t.email,
-      phone: t.phone,
-    }));
-    
-    academicStaff.forEach(a => allUsers.push({
-      id: a.id,
-      code: a.code,
-      username: a.username,
-      fullName: a.fullName,
-      role: 'academic',
-      status: a.status,
-      email: a.email,
-      phone: a.phone,
-    }));
-    
-    directors.forEach(d => allUsers.push({
-      id: d.id,
-      username: d.username,
-      fullName: d.fullName,
-      role: 'director',
-      status: 'active',
-      email: d.email,
-      phone: d.phone,
-    }));
-    
-    return allUsers;
-  };
+interface UserManagementProps {
+  initialRole?: 'student' | 'teacher';
+  initialViewMode?: ViewMode;
+}
 
-  const [users, setUsers] = useState<SystemUser[]>(getAllUsers());
+export default function UserManagement({ initialRole, initialViewMode }: UserManagementProps = {}) {
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [roles, setRoles] = useState<RolePermissions[]>(defaultRolePermissions);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || 'list');
   const [tabMode, setTabMode] = useState<TabMode>('users');
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<RolePermissions | null>(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Auto-switch to create mode if initialRole is provided
+  useEffect(() => {
+    if (initialRole && initialViewMode === 'create') {
+      setViewMode('create');
+    }
+  }, [initialRole, initialViewMode]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [UserManagement] Loading data...');
+      const response = await usersAPI.getAll();
+      console.log('✅ [UserManagement] Data loaded:', response);
+      setUsers(response.users || []);
+    } catch (err: any) {
+      console.error('❌ [UserManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const matchSearch = user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -271,177 +254,203 @@ export default function UserManagement() {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="border-b border-gray-200">
-            <div className="flex">
-              <button
-                onClick={() => setTabMode('users')}
-                className={`flex-1 px-6 py-3 border-b-2 transition-colors ${
-                  tabMode === 'users'
-                    ? 'text-gray-900'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-                style={tabMode === 'users' ? { borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' } : {}}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Danh sách người dùng
-                </div>
-              </button>
-              <button
-                onClick={() => setTabMode('roles')}
-                className={`flex-1 px-6 py-3 border-b-2 transition-colors ${
-                  tabMode === 'roles'
-                    ? 'text-gray-900'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-                style={tabMode === 'roles' ? { borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' } : {}}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Key className="w-4 h-4" />
-                  Phân quyền vai trò
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo tên, username, mã..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              />
-            </div>
-
-            <div>
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả vai trò</option>
-                <option value="academic">Bộ phận Học vụ</option>
-                <option value="teacher">Giáo viên</option>
-                <option value="student">Học viên</option>
-                <option value="director">Ban Giám đốc</option>
-              </select>
-            </div>
-
-            <div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="active">Đang hoạt động</option>
-                <option value="inactive">Đã vô hiệu hóa</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-gray-700">Mã</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Họ và tên</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Username</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Vai trò</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Liên hệ</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
-                  <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      {user.code ? (
-                        <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                          {user.code}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-sm">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-gray-900">{user.fullName}</td>
-                    <td className="px-6 py-4 text-gray-600">{user.username}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className="inline-flex px-3 py-1 rounded-full text-sm"
-                        style={{
-                          backgroundColor: roleColors[user.role].bg,
-                          color: roleColors[user.role].text,
-                        }}
-                      >
-                        {roleLabels[user.role]}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600">{user.email}</div>
-                      <div className="text-xs text-gray-500">{user.phone}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className="inline-flex px-3 py-1 rounded-full text-sm"
-                        style={{
-                          backgroundColor: user.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
-                          color: user.status === 'active' ? '#00b894' : '#d63031',
-                        }}
-                      >
-                        {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleViewDetail(user)}
-                          className="p-2 rounded-lg hover:bg-gray-100"
-                          style={{ color: 'var(--brand-primary)' }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="p-2 text-gray-600 rounded-lg hover:bg-gray-100"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(user)}
-                          className="p-2 text-red-600 rounded-lg hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {filteredUsers.length === 0 && (
+        {/* Loading State */}
+        {loading && (
           <div className="bg-white rounded-lg shadow p-12 text-center">
-            <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-gray-500">Không tìm thấy người dùng nào</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--brand-primary)' }}></div>
+            <p className="text-gray-600">Đang tải dữ liệu...</p>
           </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-red-600">⚠️</div>
+              <div>
+                <p className="text-red-800 font-medium">Lỗi tải dữ liệu</p>
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            </div>
+            <button onClick={loadData} className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200">Thử lại</button>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            {/* Tabs */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="border-b border-gray-200">
+                <div className="flex">
+                  <button
+                    onClick={() => setTabMode('users')}
+                    className={`flex-1 px-6 py-3 border-b-2 transition-colors ${
+                      tabMode === 'users'
+                        ? 'text-gray-900'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                    style={tabMode === 'users' ? { borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' } : {}}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Danh sách người dùng
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setTabMode('roles')}
+                    className={`flex-1 px-6 py-3 border-b-2 transition-colors ${
+                      tabMode === 'roles'
+                        ? 'text-gray-900'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                    style={tabMode === 'roles' ? { borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' } : {}}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Key className="w-4 h-4" />
+                      Phân quyền vai trò
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm theo tên, username, mã..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  />
+                </div>
+
+                <div>
+                  <select
+                    value={filterRole}
+                    onChange={(e) => setFilterRole(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  >
+                    <option value="all">Tất cả vai trò</option>
+                    <option value="academic">Bộ phận Học vụ</option>
+                    <option value="teacher">Giáo viên</option>
+                    <option value="student">Học viên</option>
+                    <option value="director">Ban Giám đốc</option>
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  >
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="active">Đang hoạt động</option>
+                    <option value="inactive">Đã vô hiệu hóa</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+                    <tr>
+                      <th className="px-6 py-3 text-left text-gray-700">Mã</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Họ và tên</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Username</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Vai trò</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Liên hệ</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
+                      <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredUsers.map((user) => (
+                      <tr key={user.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          {user.code ? (
+                            <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                              {user.code}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-gray-900">{user.fullName}</td>
+                        <td className="px-6 py-4 text-gray-600">{user.username}</td>
+                        <td className="px-6 py-4">
+                          <span
+                            className="inline-flex px-3 py-1 rounded-full text-sm"
+                            style={{
+                              backgroundColor: roleColors[user.role].bg,
+                              color: roleColors[user.role].text,
+                            }}
+                          >
+                            {roleLabels[user.role]}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-600">{user.email}</div>
+                          <div className="text-xs text-gray-500">{user.phone}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className="inline-flex px-3 py-1 rounded-full text-sm"
+                            style={{
+                              backgroundColor: user.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                              color: user.status === 'active' ? '#00b894' : '#d63031',
+                            }}
+                          >
+                            {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleViewDetail(user)}
+                              className="p-2 rounded-lg hover:bg-gray-100"
+                              style={{ color: 'var(--brand-primary)' }}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(user)}
+                              className="p-2 text-gray-600 rounded-lg hover:bg-gray-100"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user)}
+                              className="p-2 text-red-600 rounded-lg hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {filteredUsers.length === 0 && (
+              <div className="bg-white rounded-lg shadow p-12 text-center">
+                <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-gray-500">Không tìm thấy người dùng nào</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -558,6 +567,7 @@ export default function UserManagement() {
     return (
       <UserFormView
         user={selectedUser}
+        initialRole={initialRole}
         onBack={handleBackToList}
         onSave={handleSaveUser}
       />
@@ -624,169 +634,6 @@ export default function UserManagement() {
   }
 
   return null;
-}
-
-// User Form View Component
-function UserFormView({
-  user,
-  onBack,
-  onSave,
-}: {
-  user: SystemUser | null;
-  onBack: () => void;
-  onSave: (user: SystemUser) => void;
-}) {
-  const [formData, setFormData] = useState<SystemUser>(
-    user || {
-      id: '',
-      username: '',
-      fullName: '',
-      role: 'student',
-      status: 'active',
-      email: '',
-      phone: '',
-    }
-  );
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Quay lại
-        </button>
-      </div>
-
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <h1 className="text-gray-900">
-            {user ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}
-          </h1>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div>
-            <h2 className="text-gray-900 mb-4">Thông tin người dùng</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Họ và tên <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Tên đăng nhập <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  required
-                  disabled={!!user}
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Số điện thoại <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Vai trò <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as SystemUser['role'] })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                >
-                  <option value="student">Học viên</option>
-                  <option value="teacher">Giảng viên</option>
-                  <option value="academic">Bộ phận Học vụ</option>
-                  <option value="director">Ban Giám đốc</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Trạng thái <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                >
-                  <option value="active">Đang hoạt động</option>
-                  <option value="inactive">Đã vô hiệu hóa</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              className="px-6 py-2 text-white rounded-lg hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
-            >
-              {user ? 'Cập nhật' : 'Thêm mới'}
-            </button>
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-            >
-              Hủy
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 // Roles Management View Component

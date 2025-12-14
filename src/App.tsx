@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import LoginPage from './components/LoginPage';
 import ForgotPasswordPage from './components/ForgotPasswordPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
@@ -120,6 +120,31 @@ function App() {
     }
   };
 
+  // Wrapper components with navigation
+  const StudentManagementWithNav = () => {
+    const navigate = useNavigate();
+    return <StudentManagement onNavigateToUserManagement={() => navigate('/dashboard/users?role=student&create=true')} />;
+  };
+
+  const TeacherManagementWithNav = () => {
+    const navigate = useNavigate();
+    return <TeacherManagement onNavigateToUserManagement={() => navigate('/dashboard/users?role=teacher&create=true')} />;
+  };
+
+  const UserManagementWithParams = () => {
+    const navigate = useNavigate();
+    const params = new URLSearchParams(window.location.search);
+    const role = params.get('role') as 'student' | 'teacher' | null;
+    const shouldCreate = params.get('create') === 'true';
+
+    return (
+      <UserManagement 
+        initialRole={role || undefined} 
+        initialViewMode={shouldCreate ? 'create' : 'list'}
+      />
+    );
+  };
+
   return (
     <Router>
       <Routes>
@@ -139,12 +164,21 @@ function App() {
           <Route path="director" element={<DirectorDashboard />} />
           
           {/* Profile Page */}
-          <Route path="profile" element={<ProfilePage user={currentUser} />} />
+          <Route path="profile" element={
+            <ProfilePage 
+              user={currentUser} 
+              onUpdate={(updatedUser) => {
+                const newUser = { ...currentUser, ...updatedUser };
+                setCurrentUser(newUser);
+                localStorage.setItem('currentUser', JSON.stringify(newUser));
+              }}
+            />
+          } />
           
           {/* Management Modules */}
           <Route path="campus" element={<CampusManagement />} />
-          <Route path="students" element={<StudentManagement />} />
-          <Route path="teachers" element={<TeacherManagement />} />
+          <Route path="students" element={<StudentManagementWithNav />} />
+          <Route path="teachers" element={<TeacherManagementWithNav />} />
           <Route path="classes" element={<ClassManagement user={currentUser} />} />
           <Route path="schedule" element={<ScheduleManagement user={currentUser} />} />
           <Route path="attendance" element={<AttendanceManagement user={currentUser} />} />
@@ -153,7 +187,7 @@ function App() {
           <Route path="assignments" element={<AssignmentManagement user={currentUser} />} />
           <Route path="feedback" element={<FeedbackManagement user={currentUser} />} />
           <Route path="reports" element={<ReportStatistics />} />
-          <Route path="users" element={<UserManagement />} />
+          <Route path="users" element={<UserManagementWithParams />} />
         </Route>
       </Routes>
     </Router>

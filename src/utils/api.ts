@@ -434,3 +434,63 @@ export const adminAPI = {
     return handleResponse(response);
   }
 };
+
+// ============================================
+// USERS APIs (for UserManagement)
+// ============================================
+
+export const usersAPI = {
+  getAll: async () => {
+    const response = await fetch(`${API_BASE_URL}/users`, { headers });
+    return handleResponse(response);
+  },
+
+  getById: async (id: string) => {
+    const response = await fetch(`${API_BASE_URL}/users/${id}`, { headers });
+    return handleResponse(response);
+  },
+
+  create: async (user: any) => {
+    const response = await fetch(`${API_BASE_URL}/users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(user)
+    });
+    return handleResponse(response);
+  },
+
+  update: async (id: string, user: any) => {
+    const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(user)
+    });
+    return handleResponse(response);
+  },
+
+  delete: async (id: string) => {
+    const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+      method: 'DELETE',
+      headers
+    });
+    return handleResponse(response);
+  },
+
+  updateStatus: async (id: string, status: 'active' | 'inactive') => {
+    const response = await fetch(`${API_BASE_URL}/users/${id}/status`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status })
+    });
+    return handleResponse(response);
+  },
+
+  resetPassword: async (id: string, newPassword: string) => {
+    const response = await fetch(`${API_BASE_URL}/users/${id}/reset-password`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ newPassword })
+    });
+    return handleResponse(response);
+  }
+};

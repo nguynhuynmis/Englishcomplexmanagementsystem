@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Edit, Download, Search, Calendar, UserCheck, UserX, Plus, Filter, ChevronDown } from 'lucide-react';
 import { User } from '../../App';
 import StudentLearningProgress from './StudentLearningProgress';
+import { gradesAPI, studentsAPI } from '../../utils/api';
 
 interface IELTSScore {
   reading: number;
@@ -76,14 +77,33 @@ const mockGrades: Grade[] = [
 ];
 
 export default function GradeManagement({ user }: GradeManagementProps) {
-  const [grades, setGrades] = useState<Grade[]>(mockGrades);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'byClass'>('table');
   const [filterClass, setFilterClass] = useState('all');
   const [editingGrade, setEditingGrade] = useState<Grade | null>(null);
-  const [viewMode, setViewMode] = useState<'table' | 'byClass'>('table');
-  const [selectedClassForInput, setSelectedClassForInput] = useState<string | null>(null);
-  const [batchEditMode, setBatchEditMode] = useState(false); // Chế độ nhập điểm hàng loạt
-  const [batchEditClass, setBatchEditClass] = useState<string | null>(null); // Lớp đang nhập hàng loạt
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('🔄 [GradeManagement] Loading data...');
+      const response = await gradesAPI.getAll();
+      console.log('✅ [GradeManagement] Data loaded:', response);
+      setGrades(response.grades || []);
+    } catch (err: any) {
+      console.error('❌ [GradeManagement] Error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Lọc điểm: Học viên chỉ xem được điểm của mình
   const availableGrades = user.role === 'student' 
@@ -92,8 +112,7 @@ export default function GradeManagement({ user }: GradeManagementProps) {
 
   const filteredGrades = availableGrades.filter(grade => {
     return (
-      grade.studentName.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (filterClass === 'all' || grade.className === filterClass)
+      grade.studentName.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 

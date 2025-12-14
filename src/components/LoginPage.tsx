@@ -94,16 +94,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             Quên mật khẩu?
           </Link>
         </form>
-
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-600 mb-2">Tài khoản demo:</p>
-          <div className="text-xs text-gray-500 space-y-1">
-            <p>• Academic: huongvtt / 123456</p>
-            <p>• Director: duccv / 123456</p>
-            <p>• Teacher: lanntm / 123456</p>
-            <p>• Student: huyenntk / 123456</p>
-          </div>
-        </div>
       </div>
     </div>
   );
