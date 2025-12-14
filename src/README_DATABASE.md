@@ -228,7 +228,8 @@ npm run build
 ```
 
 ### Bước 2: Upload lên Hostinger
-- Upload folder `dist/` vào `/public_html/english-complex/`
+- Upload folder `build/` vào `/public_html/english-complex/`
+  (hoặc `dist/` nếu dùng Vite)
 
 ### Bước 3: Truy cập
 - Mở: `yoursite.com/english-complex`

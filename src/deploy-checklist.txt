@@ -1,0 +1,150 @@
+========================================
+  DEPLOY CHECKLIST - ENGLISH COMPLEX
+========================================
+
+📋 CHỌN CÁCH DEPLOY CỦA BẠN:
+
+[ ] Option A: Subfolder        (yoursite.com/english-complex)
+[ ] Option B: Subdomain        (english.yoursite.com)  ← KHUYẾN NGHỊ
+[ ] Option C: Root domain      (yoursite.com)
+
+========================================
+
+🔧 CẤU HÌNH (chọn 1 trong 3):
+
+┌─────────────────────────────────────┐
+│ OPTION A: SUBFOLDER                 │
+└─────────────────────────────────────┘
+
+1. Sửa file: vite.config.ts
+   base: '/english-complex/',
+
+2. Rebuild:
+   npm run build
+
+3. Upload build/* vào:
+   /public_html/english-complex/
+
+4. Tạo .htaccess trong /public_html/english-complex/:
+   
+   <IfModule mod_rewrite.c>
+     RewriteEngine On
+     RewriteBase /english-complex/
+     RewriteCond %{REQUEST_FILENAME} !-f
+     RewriteCond %{REQUEST_FILENAME} !-d
+     RewriteRule ^ /english-complex/index.html [L]
+   </IfModule>
+
+5. Truy cập:
+   yoursite.com/english-complex
+
+┌─────────────────────────────────────┐
+│ OPTION B: SUBDOMAIN (KHUYẾN NGHỊ)  │
+└─────────────────────────────────────┘
+
+1. Tạo subdomain trong Hostinger:
+   - Name: english
+   - Document Root: /public_html/english
+
+2. Sửa file: vite.config.ts
+   base: '/',
+
+3. Rebuild:
+   npm run build
+
+4. Upload build/* vào:
+   /public_html/english/
+
+5. Tạo .htaccess trong /public_html/english/:
+   
+   <IfModule mod_rewrite.c>
+     RewriteEngine On
+     RewriteBase /
+     RewriteCond %{REQUEST_FILENAME} !-f
+     RewriteCond %{REQUEST_FILENAME} !-d
+     RewriteRule ^ /index.html [L]
+   </IfModule>
+
+6. Truy cập:
+   english.yoursite.com
+
+┌─────────────────────────────────────┐
+│ OPTION C: ROOT DOMAIN               │
+└─────────────────────────────────────┘
+
+⚠️  LƯU Ý: Sẽ ghi đè WordPress nếu có!
+
+1. Sửa file: vite.config.ts
+   base: '/',
+
+2. Rebuild:
+   npm run build
+
+3. Upload build/* TRỰC TIẾP vào:
+   /public_html/
+
+4. Tạo/sửa .htaccess trong /public_html/
+   (Cẩn thận nếu đã có WordPress!)
+
+5. Truy cập:
+   yoursite.com
+
+========================================
+
+✅ SAU KHI UPLOAD:
+
+[ ] Kiểm tra files đã đúng:
+    - index.html có trong folder deploy
+    - assets/ có trong folder deploy
+    - .htaccess có trong folder deploy
+
+[ ] Set permissions:
+    chmod 755 cho folders
+    chmod 644 cho files
+
+[ ] Clear cache browser (Ctrl+Shift+R)
+
+[ ] Test truy cập URL
+
+[ ] Test login: huongvtt / 123456
+
+[ ] Test CRUD: Thêm/sửa/xóa data
+
+========================================
+
+🐛 NẾU KHÔNG TRUY CẬP ĐƯỢC:
+
+1. Mở F12 Console, xem lỗi gì
+
+2. Check tab Network:
+   - index.html có status 200 không?
+   - JS/CSS files có load được không?
+
+3. Test trực tiếp:
+   yoursite.com/english-complex/index.html
+   (hoặc tùy theo cách deploy)
+
+4. Verify .htaccess có đúng không
+
+5. Xem file: TROUBLESHOOTING_DEPLOY.md
+
+========================================
+
+📞 HỖ TRỢ:
+
+Nếu vẫn không được, cung cấp:
+1. Cách deploy bạn chọn (A/B/C)
+2. URL đang truy cập
+3. Screenshot lỗi F12 Console
+4. Screenshot file structure trên hosting
+
+========================================
+
+🎯 KHUYẾN NGHỊ:
+
+✅ OPTION B (Subdomain) là dễ nhất!
+   - Ít lỗi
+   - Dễ config
+   - Không ảnh hưởng WordPress
+
+========================================

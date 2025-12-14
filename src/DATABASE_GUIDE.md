@@ -384,7 +384,7 @@ Khi deploy lên Hostinger WordPress:
    ```
 
 2. **Upload lên hosting**
-   - Upload folder `dist/` vào `/public_html/english-complex/`
+   - Upload folder `build/` (hoặc `dist/` nếu dùng Vite) vào `/public_html/english-complex/`
    - URL truy cập: `yoursite.com/english-complex`
 
 3. **Supabase hoạt động tự động**

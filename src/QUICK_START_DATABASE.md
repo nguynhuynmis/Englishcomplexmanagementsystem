@@ -80,7 +80,8 @@ await studentAPI.delete(id);
 
 ```bash
 1. npm run build
-2. Upload dist/ → /public_html/english-complex/
+2. Upload build/ → /public_html/english-complex/
+   (hoặc dist/ nếu dùng Vite)
 3. Truy cập: yoursite.com/english-complex
 4. Done! ✅
 ```
