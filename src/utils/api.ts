@@ -1,360 +1,436 @@
-// API utility for English Complex Management System
+/**
+ * API Utility Functions
+ * Central place for all API calls to the server
+ */
+
 import { projectId, publicAnonKey } from './supabase/info';
 
-const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-e2861589`;
+const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-e2861589`;
 
-// Helper function to make API requests
-async function apiRequest(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE}${endpoint}`;
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${publicAnonKey}`,
-      ...options.headers,
-    },
-  });
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${publicAnonKey}`
+};
 
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+async function handleResponse(response: Response) {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Network error' }));
-    throw new Error(error.error || 'API request failed');
+    throw new Error(error.error || error.message || 'API request failed');
   }
-
   return response.json();
 }
 
-// ========================================
-// AUTHENTICATION
-// ========================================
+// ============================================
+// AUTH APIs
+// ============================================
 
 export const authAPI = {
   login: async (username: string, password: string) => {
-    return apiRequest('/auth/login', {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      headers,
+      body: JSON.stringify({ username, password })
     });
+    return handleResponse(response);
   },
 
   changePassword: async (userId: string, oldPassword: string, newPassword: string) => {
-    return apiRequest('/auth/change-password', {
+    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
       method: 'POST',
-      body: JSON.stringify({ userId, oldPassword, newPassword }),
+      headers,
+      body: JSON.stringify({ userId, oldPassword, newPassword })
     });
+    return handleResponse(response);
   },
 
   forgotPassword: async (email: string) => {
-    return apiRequest('/auth/forgot-password', {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      headers,
+      body: JSON.stringify({ email })
     });
+    return handleResponse(response);
   },
 
   resetPassword: async (email: string, code: string, newPassword: string) => {
-    return apiRequest('/auth/reset-password', {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
       method: 'POST',
-      body: JSON.stringify({ email, code, newPassword }),
+      headers,
+      body: JSON.stringify({ email, code, newPassword })
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// CAMPUSES
-// ========================================
+// ============================================
+// STUDENTS APIs
+// ============================================
 
-export const campusAPI = {
+export const studentsAPI = {
   getAll: async () => {
-    return apiRequest('/campuses');
-  },
-
-  create: async (campus: any) => {
-    return apiRequest('/campuses', {
-      method: 'POST',
-      body: JSON.stringify(campus),
-    });
-  },
-
-  update: async (id: string, campus: any) => {
-    return apiRequest(`/campuses/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(campus),
-    });
-  },
-
-  delete: async (id: string) => {
-    return apiRequest(`/campuses/${id}`, {
-      method: 'DELETE',
-    });
-  },
-};
-
-// ========================================
-// STUDENTS
-// ========================================
-
-export const studentAPI = {
-  getAll: async () => {
-    return apiRequest('/students');
+    const response = await fetch(`${API_BASE_URL}/students`, { headers });
+    return handleResponse(response);
   },
 
   create: async (student: any) => {
-    return apiRequest('/students', {
+    const response = await fetch(`${API_BASE_URL}/students`, {
       method: 'POST',
-      body: JSON.stringify(student),
+      headers,
+      body: JSON.stringify(student)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, student: any) => {
-    return apiRequest(`/students/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/students/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(student),
+      headers,
+      body: JSON.stringify(student)
     });
+    return handleResponse(response);
   },
 
   delete: async (id: string) => {
-    return apiRequest(`/students/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/students/${id}`, {
       method: 'DELETE',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// TEACHERS
-// ========================================
+// ============================================
+// TEACHERS APIs
+// ============================================
 
-export const teacherAPI = {
+export const teachersAPI = {
   getAll: async () => {
-    return apiRequest('/teachers');
+    const response = await fetch(`${API_BASE_URL}/teachers`, { headers });
+    return handleResponse(response);
   },
 
   create: async (teacher: any) => {
-    return apiRequest('/teachers', {
+    const response = await fetch(`${API_BASE_URL}/teachers`, {
       method: 'POST',
-      body: JSON.stringify(teacher),
+      headers,
+      body: JSON.stringify(teacher)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, teacher: any) => {
-    return apiRequest(`/teachers/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/teachers/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(teacher),
+      headers,
+      body: JSON.stringify(teacher)
     });
+    return handleResponse(response);
   },
 
   delete: async (id: string) => {
-    return apiRequest(`/teachers/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/teachers/${id}`, {
       method: 'DELETE',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// CLASSES
-// ========================================
+// ============================================
+// CLASSES APIs
+// ============================================
 
-export const classAPI = {
+export const classesAPI = {
   getAll: async () => {
-    return apiRequest('/classes');
+    const response = await fetch(`${API_BASE_URL}/classes`, { headers });
+    return handleResponse(response);
   },
 
   create: async (classData: any) => {
-    return apiRequest('/classes', {
+    const response = await fetch(`${API_BASE_URL}/classes`, {
       method: 'POST',
-      body: JSON.stringify(classData),
+      headers,
+      body: JSON.stringify(classData)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, classData: any) => {
-    return apiRequest(`/classes/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/classes/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(classData),
+      headers,
+      body: JSON.stringify(classData)
     });
+    return handleResponse(response);
   },
 
   delete: async (id: string) => {
-    return apiRequest(`/classes/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/classes/${id}`, {
       method: 'DELETE',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// SCHEDULES
-// ========================================
+// ============================================
+// CAMPUSES APIs
+// ============================================
 
-export const scheduleAPI = {
+export const campusesAPI = {
   getAll: async () => {
-    return apiRequest('/schedules');
+    const response = await fetch(`${API_BASE_URL}/campuses`, { headers });
+    return handleResponse(response);
+  },
+
+  create: async (campus: any) => {
+    const response = await fetch(`${API_BASE_URL}/campuses`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(campus)
+    });
+    return handleResponse(response);
+  },
+
+  update: async (id: string, campus: any) => {
+    const response = await fetch(`${API_BASE_URL}/campuses/${id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(campus)
+    });
+    return handleResponse(response);
+  },
+
+  delete: async (id: string) => {
+    const response = await fetch(`${API_BASE_URL}/campuses/${id}`, {
+      method: 'DELETE',
+      headers
+    });
+    return handleResponse(response);
+  }
+};
+
+// ============================================
+// SCHEDULES APIs
+// ============================================
+
+export const schedulesAPI = {
+  getAll: async () => {
+    const response = await fetch(`${API_BASE_URL}/schedules`, { headers });
+    return handleResponse(response);
   },
 
   create: async (schedule: any) => {
-    return apiRequest('/schedules', {
+    const response = await fetch(`${API_BASE_URL}/schedules`, {
       method: 'POST',
-      body: JSON.stringify(schedule),
+      headers,
+      body: JSON.stringify(schedule)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, schedule: any) => {
-    return apiRequest(`/schedules/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/schedules/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(schedule),
+      headers,
+      body: JSON.stringify(schedule)
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// GRADES
-// ========================================
+// ============================================
+// GRADES APIs
+// ============================================
 
-export const gradeAPI = {
+export const gradesAPI = {
   getAll: async () => {
-    return apiRequest('/grades');
+    const response = await fetch(`${API_BASE_URL}/grades`, { headers });
+    return handleResponse(response);
   },
 
   create: async (grade: any) => {
-    return apiRequest('/grades', {
+    const response = await fetch(`${API_BASE_URL}/grades`, {
       method: 'POST',
-      body: JSON.stringify(grade),
+      headers,
+      body: JSON.stringify(grade)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, grade: any) => {
-    return apiRequest(`/grades/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/grades/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(grade),
+      headers,
+      body: JSON.stringify(grade)
     });
+    return handleResponse(response);
   },
 
   batchUpdate: async (grades: any[]) => {
-    return apiRequest('/grades/batch', {
+    const response = await fetch(`${API_BASE_URL}/grades/batch`, {
       method: 'POST',
-      body: JSON.stringify(grades),
+      headers,
+      body: JSON.stringify(grades)
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// DOCUMENTS
-// ========================================
+// ============================================
+// DOCUMENTS APIs
+// ============================================
 
-export const documentAPI = {
+export const documentsAPI = {
   getAll: async () => {
-    return apiRequest('/documents');
+    const response = await fetch(`${API_BASE_URL}/documents`, { headers });
+    return handleResponse(response);
   },
 
   create: async (document: any) => {
-    return apiRequest('/documents', {
+    const response = await fetch(`${API_BASE_URL}/documents`, {
       method: 'POST',
-      body: JSON.stringify(document),
+      headers,
+      body: JSON.stringify(document)
     });
+    return handleResponse(response);
   },
 
   delete: async (id: string) => {
-    return apiRequest(`/documents/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/documents/${id}`, {
       method: 'DELETE',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// ASSIGNMENTS
-// ========================================
+// ============================================
+// ASSIGNMENTS APIs
+// ============================================
 
-export const assignmentAPI = {
+export const assignmentsAPI = {
   getAll: async () => {
-    return apiRequest('/assignments');
+    const response = await fetch(`${API_BASE_URL}/assignments`, { headers });
+    return handleResponse(response);
   },
 
   create: async (assignment: any) => {
-    return apiRequest('/assignments', {
+    const response = await fetch(`${API_BASE_URL}/assignments`, {
       method: 'POST',
-      body: JSON.stringify(assignment),
+      headers,
+      body: JSON.stringify(assignment)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, assignment: any) => {
-    return apiRequest(`/assignments/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/assignments/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(assignment),
+      headers,
+      body: JSON.stringify(assignment)
     });
+    return handleResponse(response);
   },
 
   delete: async (id: string) => {
-    return apiRequest(`/assignments/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/assignments/${id}`, {
       method: 'DELETE',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// FEEDBACK
-// ========================================
+// ============================================
+// FEEDBACK APIs
+// ============================================
 
 export const feedbackAPI = {
   getAll: async () => {
-    return apiRequest('/feedback');
+    const response = await fetch(`${API_BASE_URL}/feedback`, { headers });
+    return handleResponse(response);
   },
 
   create: async (feedback: any) => {
-    return apiRequest('/feedback', {
+    const response = await fetch(`${API_BASE_URL}/feedback`, {
       method: 'POST',
-      body: JSON.stringify(feedback),
+      headers,
+      body: JSON.stringify(feedback)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, feedback: any) => {
-    return apiRequest(`/feedback/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/feedback/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(feedback),
+      headers,
+      body: JSON.stringify(feedback)
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// NOTIFICATIONS
-// ========================================
+// ============================================
+// NOTIFICATIONS APIs
+// ============================================
 
-export const notificationAPI = {
+export const notificationsAPI = {
   getAll: async () => {
-    return apiRequest('/notifications');
+    const response = await fetch(`${API_BASE_URL}/notifications`, { headers });
+    return handleResponse(response);
   },
 
   create: async (notification: any) => {
-    return apiRequest('/notifications', {
+    const response = await fetch(`${API_BASE_URL}/notifications`, {
       method: 'POST',
-      body: JSON.stringify(notification),
+      headers,
+      body: JSON.stringify(notification)
     });
+    return handleResponse(response);
   },
 
   update: async (id: string, notification: any) => {
-    return apiRequest(`/notifications/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/notifications/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(notification),
+      headers,
+      body: JSON.stringify(notification)
     });
+    return handleResponse(response);
   },
 
   delete: async (id: string) => {
-    return apiRequest(`/notifications/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/notifications/${id}`, {
       method: 'DELETE',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };
 
-// ========================================
-// ADMIN - Initialize Data
-// ========================================
+// ============================================
+// ADMIN APIs
+// ============================================
 
 export const adminAPI = {
-  initializeData: async (data: any) => {
-    return apiRequest('/admin/init-data', {
+  initData: async (data: any) => {
+    const response = await fetch(`${API_BASE_URL}/admin/init-data`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      headers,
+      body: JSON.stringify(data)
     });
+    return handleResponse(response);
   },
-  
+
   resetData: async () => {
-    return apiRequest('/admin/reset-data', {
+    const response = await fetch(`${API_BASE_URL}/admin/reset-data`, {
       method: 'POST',
+      headers
     });
-  },
+    return handleResponse(response);
+  }
 };

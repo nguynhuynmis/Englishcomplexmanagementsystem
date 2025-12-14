@@ -1,19 +1,54 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Edit, Eye, Search, Mail, Phone, Calendar, MapPin, User, ArrowLeft, GraduationCap, Trash2 } from 'lucide-react';
 import { students, classes } from '../../data/mockData';
 import type { Student } from '../../data/mockData';
 import StudentLearningProgress from './StudentLearningProgress';
+import { studentsAPI, classesAPI } from '../../utils/api';
 
 type ViewMode = 'list' | 'detail' | 'create' | 'edit';
 
 export default function StudentManagement() {
-  const [studentList, setStudentList] = useState<Student[]>(students);
+  const [studentList, setStudentList] = useState<Student[]>([]);
+  const [classList, setClassList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCampus, setFilterCampus] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'progress'>('info'); // Tab cho detail view
+
+  // Load students and classes from API
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 [StudentManagement] Loading students and classes from API...');
+      const [studentsResponse, classesResponse] = await Promise.all([
+        studentsAPI.getAll(),
+        classesAPI.getAll()
+      ]);
+      
+      console.log('✅ [StudentManagement] API Response:', {
+        students: studentsResponse,
+        classes: classesResponse
+      });
+      
+      setStudentList(studentsResponse.students || []);
+      setClassList(classesResponse.classes || []);
+    } catch (err: any) {
+      console.error('❌ [StudentManagement] Load data error:', err);
+      setError(err.message || 'Không thể tải dữ liệu');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredStudents = studentList.filter(student => {
     const matchSearch = student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,20 +79,43 @@ export default function StudentManagement() {
     setSelectedStudent(null);
   };
 
-  const handleSave = (student: Student) => {
-    if (viewMode === 'edit' && selectedStudent) {
-      setStudentList(studentList.map(s => s.id === student.id ? student : s));
-    } else {
-      setStudentList([...studentList, { ...student, id: `HV${Date.now()}` }]);
+  const handleSave = async (student: Student) => {
+    try {
+      console.log('[StudentManagement] Saving student:', student);
+      
+      if (viewMode === 'edit' && selectedStudent) {
+        // Update existing student
+        await studentsAPI.update(student.id, student);
+        setStudentList(studentList.map(s => s.id === student.id ? student : s));
+      } else {
+        // Create new student
+        const response = await studentsAPI.create(student);
+        setStudentList([...studentList, response.student]);
+      }
+      
+      setViewMode('list');
+      setSelectedStudent(null);
+    } catch (err: any) {
+      console.error('[StudentManagement] Save error:', err);
+      alert(`Lỗi: ${err.message || 'Không thể lưu học viên'}`);
     }
-    setViewMode('list');
-    setSelectedStudent(null);
   };
 
-  const handleDelete = (student: Student) => {
-    setStudentList(studentList.filter(s => s.id !== student.id));
-    setViewMode('list');
-    setSelectedStudent(null);
+  const handleDelete = async (student: Student) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa học viên ${student.fullName}?`)) {
+      return;
+    }
+    
+    try {
+      console.log('[StudentManagement] Deleting student:', student.id);
+      await studentsAPI.delete(student.id);
+      setStudentList(studentList.filter(s => s.id !== student.id));
+      setViewMode('list');
+      setSelectedStudent(null);
+    } catch (err: any) {
+      console.error('[StudentManagement] Delete error:', err);
+      alert(`Lỗi: ${err.message || 'Không thể xóa học viên'}`);
+    }
   };
 
   // List View
@@ -76,139 +134,175 @@ export default function StudentManagement() {
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm theo tên, email, mã HV..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              />
-            </div>
-
-            <div>
-              <select
-                value={filterCampus}
-                onChange={(e) => setFilterCampus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả cơ sở</option>
-                <option value="CS001">Cơ sở Long Biên</option>
-                <option value="CS002">Cơ sở Hai Bà Trưng</option>
-              </select>
-            </div>
-
-            <div>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="active">Đang học</option>
-                <option value="inactive">Đã nghỉ</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
-                <tr>
-                  <th className="px-6 py-3 text-left text-gray-700">Mã HV</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Họ và tên</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Ngày sinh</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Liên hệ</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Cơ sở</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Lớp học</th>
-                  <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
-                  <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                        {student.code}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-900">{student.fullName}</td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {new Date(student.dateOfBirth).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600">{student.phone}</div>
-                      <div className="text-xs text-gray-500">{student.email}</div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {student.campus === 'CS001' ? 'Long Biên' : 'Hai Bà Trưng'}
-                    </td>
-                    <td className="px-6 py-4">
-                      {student.currentClass ? (
-                        <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--pastel-green-light)', color: '#00b894' }}>
-                          {classes.find(c => c.id === student.currentClass)?.name || student.currentClass}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Chưa xếp lớp</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className="inline-flex px-3 py-1 rounded-full text-sm"
-                        style={{
-                          backgroundColor: student.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
-                          color: student.status === 'active' ? '#00b894' : '#d63031',
-                        }}
-                      >
-                        {student.status === 'active' ? 'Đang học' : 'Đã nghỉ'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleViewDetail(student)}
-                          className="p-2 rounded-lg hover:bg-gray-100"
-                          style={{ color: 'var(--brand-primary)' }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEdit(student)}
-                          className="p-2 text-gray-600 rounded-lg hover:bg-gray-100"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(student)}
-                          className="p-2 text-red-600 rounded-lg hover:bg-gray-100"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {filteredStudents.length === 0 && (
+        {/* Loading State */}
+        {loading && (
           <div className="bg-white rounded-lg shadow p-12 text-center">
-            <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-gray-500">Không tìm thấy học viên nào</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--brand-primary)' }}></div>
+            <p className="text-gray-600">Đang tải dữ liệu...</p>
           </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-red-600">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-red-800 font-medium">Lỗi tải dữ liệu</p>
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            </div>
+            <button
+              onClick={loadData}
+              className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
+
+        {/* Content (only show if not loading) */}
+        {!loading && !error && (
+          <>
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm theo tên, email, mã HV..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  />
+                </div>
+
+                <div>
+                  <select
+                    value={filterCampus}
+                    onChange={(e) => setFilterCampus(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  >
+                    <option value="all">Tất cả cơ sở</option>
+                    <option value="CS001">Cơ sở Long Biên</option>
+                    <option value="CS002">Cơ sở Hai Bà Trưng</option>
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  >
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="active">Đang học</option>
+                    <option value="inactive">Đã nghỉ</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+                    <tr>
+                      <th className="px-6 py-3 text-left text-gray-700">Mã HV</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Họ và tên</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Ngày sinh</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Liên hệ</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Cơ sở</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Lớp học</th>
+                      <th className="px-6 py-3 text-left text-gray-700">Trạng thái</th>
+                      <th className="px-6 py-3 text-right text-gray-700">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                            {student.code}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-gray-900">{student.fullName}</td>
+                        <td className="px-6 py-4 text-gray-600">
+                          {new Date(student.dateOfBirth).toLocaleDateString('vi-VN')}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-600">{student.phone}</div>
+                          <div className="text-xs text-gray-500">{student.email}</div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-600">
+                          {student.campus === 'CS001' ? 'Long Biên' : 'Hai Bà Trưng'}
+                        </td>
+                        <td className="px-6 py-4">
+                          {student.currentClass ? (
+                            <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--pastel-green-light)', color: '#00b894' }}>
+                              {classes.find(c => c.id === student.currentClass)?.name || student.currentClass}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">Chưa xếp lớp</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className="inline-flex px-3 py-1 rounded-full text-sm"
+                            style={{
+                              backgroundColor: student.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
+                              color: student.status === 'active' ? '#00b894' : '#d63031',
+                            }}
+                          >
+                            {student.status === 'active' ? 'Đang học' : 'Đã nghỉ'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleViewDetail(student)}
+                              className="p-2 rounded-lg hover:bg-gray-100"
+                              style={{ color: 'var(--brand-primary)' }}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(student)}
+                              className="p-2 text-gray-600 rounded-lg hover:bg-gray-100"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(student)}
+                              className="p-2 text-red-600 rounded-lg hover:bg-gray-100"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {filteredStudents.length === 0 && (
+              <div className="bg-white rounded-lg shadow p-12 text-center">
+                <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-gray-500">Không tìm thấy học viên nào</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     );
