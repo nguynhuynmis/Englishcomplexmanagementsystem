@@ -19,13 +19,22 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setError('');
     setIsLoading(true);
 
+    console.log('🔐 [LoginPage] Attempting login with:', { username, password });
+
     try {
       const response = await authAPI.login(username, password);
       
+      console.log('✅ [LoginPage] Login response:', response);
+      
       if (response.user) {
+        console.log('✅ [LoginPage] User data received:', response.user);
         onLogin(response.user);
+      } else {
+        console.error('❌ [LoginPage] No user data in response');
+        setError('Không nhận được thông tin người dùng');
       }
     } catch (err: any) {
+      console.error('❌ [LoginPage] Login error:', err);
       setError(err.message || 'Tên đăng nhập hoặc mật khẩu không đúng');
     } finally {
       setIsLoading(false);

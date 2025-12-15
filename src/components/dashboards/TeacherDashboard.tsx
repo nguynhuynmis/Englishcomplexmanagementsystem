@@ -1,54 +1,125 @@
 import { BookOpen, Calendar, ClipboardList, FileText, Users, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { User } from '../../App';
-import { teachers, classes, schedules, students } from '../../data/mockData';
+import { useState, useEffect } from 'react';
+import { teachersAPI, classesAPI, schedulesAPI, assignmentsAPI } from '../../utils/api';
 
 interface TeacherDashboardProps {
   user: User;
 }
 
 export default function TeacherDashboard({ user }: TeacherDashboardProps) {
-  // Tìm thông tin giáo viên
-  const teacherData = teachers.find(t => t.id === user.id);
-  
-  // Lấy danh sách lớp đang dạy
-  const teacherClasses = classes.filter(c => c.teacher === user.fullName && c.status === 'active');
-  
-  // Tổng số học viên
-  const totalStudents = teacherClasses.reduce((sum, c) => sum + c.totalStudents, 0);
-  
-  // Lịch dạy hôm nay
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const todaySchedules = schedules.filter(s => 
-    s.teacherId === user.id && 
-    s.date === todayStr
-  );
+  const [teacherData, setTeacherData] = useState<any>(null);
+  const [teacherClasses, setTeacherClasses] = useState<any[]>([]);
+  const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
+  const [thisWeekSchedules, setThisWeekSchedules] = useState<any[]>([]);
+  const [assignmentsToGrade, setAssignmentsToGrade] = useState<any[]>([]);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [attendanceNeeded, setAttendanceNeeded] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [todayStr, setTodayStr] = useState('');
 
-  // Lịch dạy tuần này
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay() + 1);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  
-  const thisWeekSchedules = schedules.filter(s => {
-    const scheduleDate = new Date(s.date);
-    return s.teacherId === user.id && 
-           scheduleDate >= weekStart && 
-           scheduleDate <= weekEnd;
-  });
+  useEffect(() => {
+    loadDashboardData();
+  }, [user.teacherId]);
 
-  // Số buổi cần điểm danh hôm nay
-  const attendanceNeeded = todaySchedules.filter(s => 
-    s.status === 'scheduled' && 
-    !s.attendanceRecords
-  ).length;
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load teacher info
+      try {
+        const teachersResponse = await teachersAPI.getAll();
+        const teacher = teachersResponse.teachers?.find((t: any) => t.id === user.teacherId);
+        setTeacherData(teacher);
+      } catch (err) {
+        console.error('❌ [TeacherDashboard] Failed to load teacher info:', err);
+      }
+      
+      // Load all classes and filter by teacher
+      try {
+        const classesResponse = await classesAPI.getAll();
+        const allClasses = classesResponse.classes || [];
+        const myClasses = allClasses.filter((c: any) => 
+          c.teacher === user.fullName && c.status === 'active'
+        );
+        setTeacherClasses(myClasses);
+        
+        // Calculate total students
+        const studentsCount = myClasses.reduce((sum: number, c: any) => sum + (c.currentStudents || 0), 0);
+        setTotalStudents(studentsCount);
+      } catch (err) {
+        console.error('❌ [TeacherDashboard] Failed to load classes:', err);
+      }
+      
+      // Load schedules
+      try {
+        const schedulesResponse = await schedulesAPI.getAll();
+        const allSchedules = schedulesResponse.schedules || [];
+        
+        // Filter schedules for today
+        const today = new Date();
+        const todayString = today.toISOString().split('T')[0];
+        setTodayStr(todayString);
+        
+        const todayFiltered = allSchedules.filter((s: any) => 
+          s.teacher === user.fullName && s.date === todayString
+        );
+        setTodaySchedules(todayFiltered);
+        
+        // Calculate attendance needed
+        const attendanceCount = todayFiltered.filter((s: any) => 
+          s.status === 'scheduled' && !s.attendanceRecords
+        ).length;
+        setAttendanceNeeded(attendanceCount);
+        
+        // Filter schedules for this week
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay() + 1);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        const weekFiltered = allSchedules.filter((s: any) => {
+          const scheduleDate = new Date(s.date);
+          return s.teacher === user.fullName && 
+                 scheduleDate >= weekStart && 
+                 scheduleDate <= weekEnd;
+        });
+        setThisWeekSchedules(weekFiltered);
+      } catch (err) {
+        console.error('❌ [TeacherDashboard] Failed to load schedules:', err);
+      }
+      
+      // Load assignments to grade
+      try {
+        const assignmentsResponse = await assignmentsAPI.getAll();
+        const allAssignments = assignmentsResponse.assignments || [];
+        
+        // Filter assignments by teacher's classes
+        const myClassIds = teacherClasses.map((c: any) => c.id);
+        const needGrading = allAssignments.filter((a: any) => 
+          myClassIds.includes(a.classId)
+        ).slice(0, 2); // Take first 2
+        setAssignmentsToGrade(needGrading);
+      } catch (err) {
+        console.error('❌ [TeacherDashboard] Failed to load assignments:', err);
+        // Keep empty array - already initialized
+      }
+      
+    } catch (err) {
+      console.error('❌ [TeacherDashboard] General load error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Mock data bài tập cần chấm
-  const assignmentsToGrade = [
-    { id: '1', class: teacherClasses[0]?.name || 'IELTS Beginner A1', assignment: 'Bài tập Unit 3', submissions: 15, total: 18 },
-    { id: '2', class: teacherClasses[1]?.name || 'IELTS Intermediate B1', assignment: 'Essay Writing Practice', submissions: 12, total: 15 },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Đang tải dữ liệu...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -168,8 +239,10 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
                         <Clock className="w-4 h-4" />
                         <span>{schedule.startTime} - {schedule.endTime}</span>
                       </div>
-                      <p>📍 Phòng {schedule.room} - {schedule.campus}</p>
-                      <p>👥 {schedule.studentIds.length} học viên</p>
+                      <p>📍 {schedule.room ? `Phòng ${schedule.room} - ` : ''}{schedule.campus}</p>
+                      {schedule.studentIds && schedule.studentIds.length > 0 && (
+                        <p>👥 {schedule.studentIds.length} học viên</p>
+                      )}
                     </div>
                     {schedule.status === 'scheduled' && !schedule.attendanceRecords && (
                       <button 
@@ -217,7 +290,7 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <h3 className="text-gray-900">{classItem.name}</h3>
-                          <p className="text-sm text-gray-600">{classItem.code}</p>
+                          <p className="text-sm text-gray-600">{classItem.id}</p>
                         </div>
                         <span 
                           className="px-2 py-1 rounded text-xs"
@@ -229,15 +302,15 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
                           <p className="text-gray-500">Sĩ số</p>
-                          <p className="text-gray-900">{classItem.totalStudents}/{classItem.maxStudents}</p>
+                          <p className="text-gray-900">{classItem.currentStudents}/{classItem.capacity}</p>
                         </div>
                         <div>
-                          <p className="text-gray-500">Phòng</p>
-                          <p className="text-gray-900">{classItem.room}</p>
+                          <p className="text-gray-500">Cơ sở</p>
+                          <p className="text-gray-900">{classItem.campus}</p>
                         </div>
                       </div>
                       <div className="mt-2 text-xs text-gray-600">
-                        📅 {classItem.schedule}
+                        📅 {classItem.schedule || 'Chưa có lịch'}
                       </div>
                     </div>
                   );
@@ -313,7 +386,7 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
                     </div>
                     <h4 className="text-gray-900 mb-1 text-sm">{schedule.className}</h4>
                     <div className="text-xs text-gray-600 space-y-1">
-                      <p>📍 Phòng {schedule.room}</p>
+                      {schedule.room && <p>📍 Phòng {schedule.room}</p>}
                       <p>⏱️ {schedule.startTime} - {schedule.endTime}</p>
                     </div>
                   </div>
@@ -338,7 +411,10 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
           ) : (
             <div className="space-y-3">
               {assignmentsToGrade.map((item) => {
-                const percentage = Math.round((item.submissions / item.total) * 100);
+                // Calculate percentage based on assignment data structure
+                const submissions = item.submissions || 0;
+                const total = item.total || 1;
+                const percentage = total > 0 ? Math.round((submissions / total) * 100) : 0;
                 
                 return (
                   <div 
@@ -347,17 +423,17 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="text-gray-900">{item.assignment}</h3>
-                        <p className="text-sm text-gray-600">{item.class}</p>
+                        <h3 className="text-gray-900">{item.title || item.assignment}</h3>
+                        <p className="text-sm text-gray-600">{item.className || item.class}</p>
                       </div>
                       <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded text-sm">
-                        {item.submissions}/{item.total} bài
+                        {submissions}/{total} bài
                       </span>
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1 text-sm">
-                        <span className="text-gray-600">Tiến độ nộp bài</span>
-                        <span className="text-gray-900">{percentage}%</span>
+                        <span className="text-gray-600">Hạn nộp</span>
+                        <span className="text-gray-900">{item.deadline ? new Date(item.deadline).toLocaleDateString('vi-VN') : 'Chưa có'}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 

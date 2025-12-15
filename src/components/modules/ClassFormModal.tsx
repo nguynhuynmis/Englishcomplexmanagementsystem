@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { coursesAPI, teachersAPI } from '../../utils/api';
 
 interface Class {
   id: string;
@@ -9,8 +10,18 @@ interface Class {
   capacity: number;
   currentStudents: number;
   teacher: string;
-  status: 'active' | 'completed';
+  status: 'active' | 'completed' | 'inactive';
   schedule: string;
+}
+
+interface Course {
+  id: string;
+  name: string;
+}
+
+interface Teacher {
+  id: string;
+  fullName: string;
 }
 
 interface DaySchedule {
@@ -36,10 +47,15 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
       capacity: 20,
       currentStudents: 0,
       teacher: '',
-      status: 'active',
+      status: 'inactive',
       schedule: '',
     }
   );
+
+  // NEW: State for courses and teachers
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Schedule với mỗi thứ có thể chọn và nhập giờ riêng
   const [daySchedules, setDaySchedules] = useState<DaySchedule[]>([
@@ -53,10 +69,38 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
   ]);
 
   const timeSlots = [
-    '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-    '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-    '18:00', '19:00', '20:00', '21:00', '22:00'
+    '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30',
+    '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
+    '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00'
   ];
+
+  // NEW: Load courses and teachers from API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch courses and teachers in parallel
+        const [coursesData, teachersData] = await Promise.all([
+          coursesAPI.getAll(),
+          teachersAPI.getAll()
+        ]);
+        
+        console.log('📖 [ClassFormModal] Courses loaded:', coursesData);
+        console.log('👨‍🏫 [ClassFormModal] Teachers loaded:', teachersData);
+        
+        setCourses(coursesData || []);
+        setTeachers(teachersData.teachers || []);
+      } catch (error) {
+        console.error('❌ [ClassFormModal] Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+  }, []);
 
   // Parse existing schedule when editing
   useEffect(() => {
@@ -90,9 +134,19 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
   };
 
   const updateDayTime = (index: number, field: 'startTime' | 'endTime', value: string) => {
-    setDaySchedules(prev => prev.map((ds, i) => 
-      i === index ? { ...ds, [field]: value } : ds
-    ));
+    setDaySchedules(prev => prev.map((ds, i) => {
+      if (i === index) {
+        if (field === 'startTime') {
+          // Tự động tính endTime = startTime + 2 giờ
+          const [hours, minutes] = value.split(':').map(Number);
+          const endHours = hours + 2;
+          const endTime = `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          return { ...ds, startTime: value, endTime };
+        }
+        return { ...ds, [field]: value };
+      }
+      return ds;
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -177,11 +231,13 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
                   onChange={(e) => setFormData({ ...formData, level: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  required
+                  disabled={loading}
                 >
-                  <option value="Foundation">Foundation</option>
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
+                  <option value="">Chọn trình độ...</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -213,16 +269,26 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
                   required
                 >
                   <option value="">Chọn giảng viên...</option>
-                  <option value="Nguyễn Thị Mai Lan">Nguyễn Thị Mai Lan</option>
-                  <option value="Trần Văn Bình">Trần Văn Bình</option>
-                  <option value="Lê Thị Thu Hà">Lê Thị Thu Hà</option>
-                  <option value="Phạm Minh Tuấn">Phạm Minh Tuấn</option>
-                  <option value="Hoàng Văn Đức">Hoàng Văn Đức</option>
-                  <option value="Đỗ Thị Hương">Đỗ Thị Hương</option>
-                  <option value="Vũ Quốc Anh">Vũ Quốc Anh</option>
-                  <option value="Bùi Thị Lan">Bùi Thị Lan</option>
-                  <option value="Trương Minh Khang">Trương Minh Khang</option>
-                  <option value="Lê Thị Phương Anh">Lê Thị Phương Anh</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.fullName}>{t.fullName}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 mb-2">
+                  Trạng thái <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'completed' | 'inactive' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  required
+                >
+                  <option value="inactive">Chưa bắt đầu</option>
+                  <option value="active">Đang hoạt động</option>
+                  <option value="completed">Đã hoàn thành</option>
                 </select>
               </div>
             </div>
@@ -234,7 +300,7 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
               Lịch học <span className="text-red-500">*</span>
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              Chọn các ngày trong tuần và thiết lập giờ học cho từng ngày
+              Chọn các ngày trong tuần và nhập giờ bắt đầu (hệ thống tự động tính giờ kết thúc sau 2 tiếng)
             </p>
             
             <div className="space-y-3">
@@ -253,27 +319,26 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
                   
                   {ds.enabled && (
                     <div className="flex items-center gap-2 flex-1">
-                      <select
-                        value={ds.startTime}
-                        onChange={(e) => updateDayTime(index, 'startTime', e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                        style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                      >
-                        {timeSlots.map(time => (
-                          <option key={time} value={time}>{time}</option>
-                        ))}
-                      </select>
-                      <span className="text-gray-500">-</span>
-                      <select
-                        value={ds.endTime}
-                        onChange={(e) => updateDayTime(index, 'endTime', e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                        style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                      >
-                        {timeSlots.map(time => (
-                          <option key={time} value={time}>{time}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-gray-500">Bắt đầu</label>
+                        <input
+                          type="time"
+                          value={ds.startTime}
+                          onChange={(e) => updateDayTime(index, 'startTime', e.target.value)}
+                          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                          style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                        />
+                      </div>
+                      <span className="text-gray-500 mt-5">→</span>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-gray-500">Kết thúc (tự động +2h)</label>
+                        <input
+                          type="time"
+                          value={ds.endTime}
+                          className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                          readOnly
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

@@ -3,48 +3,90 @@ import { Link } from 'react-router-dom';
 import { User } from '../../App';
 import { students, schedules, classes } from '../../data/mockData';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useState, useEffect } from 'react';
+import { schedulesAPI, gradesAPI, studentsAPI, assignmentsAPI } from '../../utils/api';
 
 interface StudentDashboardProps {
   user: User;
 }
 
 export default function StudentDashboard({ user }: StudentDashboardProps) {
-  // Tìm thông tin học viên từ mockData
-  const studentData = students.find(s => s.id === user.id);
+  const [studentData, setStudentData] = useState<any>(null);
+  const [thisWeekSchedules, setThisWeekSchedules] = useState<any[]>([]);
+  const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
+  const [recentGrades, setRecentGrades] = useState<any[]>([]);
+  const [pendingAssignments, setPendingAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [todayStr, setTodayStr] = useState('');
   
+  useEffect(() => {
+    loadDashboardData();
+  }, [user.studentId]);
+  
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load student info
+      const studentsResponse = await studentsAPI.getAll();
+      const student = studentsResponse.students?.find((s: any) => s.id === user.studentId);
+      setStudentData(student);
+      
+      // Load schedules
+      const schedulesResponse = await schedulesAPI.getAll();
+      const allSchedules = schedulesResponse.schedules || [];
+      
+      // Filter schedules for this week
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6); // Sunday
+      
+      const filtered = allSchedules.filter((s: any) => {
+        const scheduleDate = new Date(s.date);
+        return scheduleDate >= weekStart && scheduleDate <= weekEnd;
+      });
+      setThisWeekSchedules(filtered);
+      
+      // Filter today's schedules
+      const todayStr = today.toISOString().split('T')[0];
+      setTodayStr(todayStr);
+      const todayFiltered = allSchedules.filter((s: any) => s.date === todayStr);
+      setTodaySchedules(todayFiltered);
+      
+      // Load recent grades
+      if (user.studentId) {
+        const gradesResponse = await gradesAPI.getAll();
+        const studentGrades = (gradesResponse.grades || [])
+          .filter((g: any) => g.studentId === user.studentId)
+          .sort((a: any, b: any) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
+          .slice(0, 5);
+        setRecentGrades(studentGrades);
+      }
+      
+      // Load pending assignments
+      const assignmentsResponse = await assignmentsAPI.getAll();
+      const allAssignments = assignmentsResponse.assignments || [];
+      const pending = allAssignments
+        .filter((a: any) => {
+          const deadline = new Date(a.deadline);
+          return deadline >= today && a.status !== 'submitted';
+        })
+        .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+        .slice(0, 3);
+      setPendingAssignments(pending);
+      
+    } catch (err) {
+      console.error('❌ [StudentDashboard] Load error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Lấy lớp học của học viên
   const studentClass = studentData?.currentClass ? classes.find(c => c.id === studentData.currentClass) : null;
   
-  // Lấy lịch học tuần này (từ schedules)
-  const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay() + 1); // Thứ 2
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6); // Chủ nhật
-  
-  const thisWeekSchedules = schedules.filter(s => {
-    if (!studentData?.currentClass) return false;
-    const scheduleDate = new Date(s.date);
-    return s.classId === studentData.currentClass && 
-           scheduleDate >= weekStart && 
-           scheduleDate <= weekEnd;
-  });
-
-  // Lấy lịch học hôm nay
-  const todayStr = today.toISOString().split('T')[0];
-  const todaySchedules = schedules.filter(s => 
-    studentData?.currentClass && 
-    s.classId === studentData.currentClass && 
-    s.date === todayStr
-  );
-
-  // Mock data bài tập
-  const pendingAssignments = [
-    { id: '1', title: 'Bài tập Unit 3 - Writing Task 2', subject: 'IELTS Writing', deadline: '2025-12-15', status: 'Chưa nộp' },
-    { id: '2', title: 'Speaking Practice - Topic: Technology', subject: 'IELTS Speaking', deadline: '2025-12-16', status: 'Chưa nộp' },
-    { id: '3', title: 'Reading Comprehension - Unit 4', subject: 'IELTS Reading', deadline: '2025-12-18', status: 'Chưa nộp' },
-  ];
-
   // Mock data tài liệu mới
   const recentDocuments = [
     { id: '1', title: 'Unit 3: Technology and Innovation', type: 'Giáo trình', uploadDate: '2025-12-01' },
@@ -97,7 +139,9 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
           </div>
           <p className="text-2xl text-gray-900">{pendingAssignments.length} bài</p>
           <p className="text-xs text-gray-500 mt-1">
-            Gần nhất: {new Date(pendingAssignments[0].deadline).toLocaleDateString('vi-VN')}
+            {pendingAssignments.length > 0 
+              ? `Gần nhất: ${new Date(pendingAssignments[0].deadline).toLocaleDateString('vi-VN')}`
+              : 'Không có bài tập sắp tới'}
           </p>
         </div>
 

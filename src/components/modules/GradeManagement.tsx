@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { Edit, Download, Search, Calendar, UserCheck, UserX, Plus, Filter, ChevronDown } from 'lucide-react';
 import { User } from '../../App';
 import StudentLearningProgress from './StudentLearningProgress';
+import GradesByClass from './GradesByClass';
 import { gradesAPI, studentsAPI } from '../../utils/api';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
+
+const API_BASE_URL = `https://${projectId}.supabase.co/functions/v1/make-server-e2861589`;
 
 interface IELTSScore {
   reading: number;
@@ -96,7 +100,9 @@ export default function GradeManagement({ user }: GradeManagementProps) {
       console.log('🔄 [GradeManagement] Loading data...');
       const response = await gradesAPI.getAll();
       console.log('✅ [GradeManagement] Data loaded:', response);
-      setGrades(response.grades || []);
+      // API returns { grades: [...] }, unwrap it
+      const gradesArray = response?.grades || response || [];
+      setGrades(gradesArray);
     } catch (err: any) {
       console.error('❌ [GradeManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
@@ -105,9 +111,39 @@ export default function GradeManagement({ user }: GradeManagementProps) {
     }
   };
 
+  const handleGenerateSampleGrades = async () => {
+    if (!confirm('Tạo điểm mẫu cho tất cả học viên đã ghi danh? (Chỉ tạo cho học viên chưa có điểm)')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/grades/generate-samples`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate sample grades');
+      
+      const result = await response.json();
+      alert(`✅ Đã tạo ${result.generated} điểm mẫu thành công!`);
+      await loadData(); // Reload data
+    } catch (error: any) {
+      console.error('❌ Error generating sample grades:', error);
+      alert('Lỗi khi tạo điểm mẫu: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Lọc điểm: Học viên chỉ xem được điểm của mình
   const availableGrades = user.role === 'student' 
-    ? grades.filter(g => g.studentId === user.id)
+    ? grades.filter(g => {
+        // Use user.studentId to match g.studentId (both are id_student from students table)
+        const match = g.studentId === user.studentId?.toString();
+        console.log('🎯 [GradeManagement] Student filter - User studentId:', user.studentId, 'Grade studentId:', g.studentId, 'Match:', match);
+        return match;
+      })
     : grades;
 
   const filteredGrades = availableGrades.filter(grade => {
@@ -128,11 +164,25 @@ export default function GradeManagement({ user }: GradeManagementProps) {
     alert('Xuất Excel đang được phát triển');
   };
 
-  const handleSaveGrade = () => {
+  const handleSaveGrade = async () => {
     if (editingGrade) {
-      setGrades(grades.map(g => g.id === editingGrade.id ? editingGrade : g));
-      setEditingGrade(null);
-      alert('Cập nhật điểm thành công!');
+      try {
+        console.log('💾 [GradeManagement] Saving grade:', editingGrade);
+        
+        // Call API to update grade
+        await gradesAPI.update(editingGrade.id, editingGrade);
+        
+        // Update local state
+        setGrades(grades.map(g => g.id === editingGrade.id ? editingGrade : g));
+        setEditingGrade(null);
+        alert('Cập nhật điểm thành công!');
+        
+        // Reload data to get fresh data from server
+        await loadData();
+      } catch (error: any) {
+        console.error('❌ [GradeManagement] Error saving grade:', error);
+        alert('Lỗi khi cập nhật điểm: ' + (error.message || 'Vui lòng thử lại'));
+      }
     }
   };
 
@@ -190,32 +240,43 @@ export default function GradeManagement({ user }: GradeManagementProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-gray-900">{pageTitle}</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {(user.role === 'academic' || user.role === 'teacher') && (
-            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-3 py-1.5 rounded transition-colors ${
-                  viewMode === 'table' 
-                    ? 'text-white' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-                style={viewMode === 'table' ? { backgroundColor: 'var(--brand-primary)' } : {}}
-              >
-                Bảng điểm
-              </button>
-              <button
-                onClick={() => setViewMode('byClass')}
-                className={`px-3 py-1.5 rounded transition-colors ${
-                  viewMode === 'byClass' 
-                    ? 'text-white' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-                style={viewMode === 'byClass' ? { backgroundColor: 'var(--brand-primary)' } : {}}
-              >
-                Theo lớp
-              </button>
-            </div>
+            <>
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 rounded transition-colors ${
+                    viewMode === 'table' 
+                      ? 'text-white' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  style={viewMode === 'table' ? { backgroundColor: 'var(--brand-primary)' } : {}}
+                >
+                  Bảng điểm
+                </button>
+                <button
+                  onClick={() => setViewMode('byClass')}
+                  className={`px-3 py-1.5 rounded transition-colors ${
+                    viewMode === 'byClass' 
+                      ? 'text-white' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  style={viewMode === 'byClass' ? { backgroundColor: 'var(--brand-primary)' } : {}}
+                >
+                  Theo lớp
+                </button>
+              </div>
+              {grades.length === 0 && (
+                <button
+                  onClick={handleGenerateSampleGrades}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Tạo điểm mẫu
+                </button>
+              )}
+            </>
           )}
           <button
             onClick={handleExportPDF}
@@ -343,76 +404,7 @@ export default function GradeManagement({ user }: GradeManagementProps) {
 
       {/* By Class View */}
       {viewMode === 'byClass' && (
-        <>
-          {/* Grades by Class */}
-          <div className="space-y-6">
-            {filterClass !== 'all' ? (
-              gradesByClass[filterClass].map(grade => (
-                <div key={grade.id} className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2 py-1 rounded text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                        {grade.studentId}
-                      </span>
-                      <span className="text-gray-900">{grade.studentName}</span>
-                    </div>
-                    {(user.role === 'academic' || user.role === 'teacher') && (
-                      <button
-                        onClick={() => setEditingGrade(grade)}
-                        className="p-2 rounded-lg hover:bg-gray-100"
-                        style={{ color: 'var(--brand-primary)' }}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-700">Lớp học</span>
-                      <span className="text-gray-600">{grade.className}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-gray-700">Chuyên cần</span>
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="flex items-center gap-1 text-green-600">
-                          <UserCheck className="w-4 h-4" />
-                          <span className="text-sm">{grade.attendance.attendedSessions}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-red-600">
-                          <UserX className="w-4 h-4" />
-                          <span className="text-sm">{grade.attendance.absentSessions}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-gray-700">Điểm giữa kỳ</span>
-                      <div className="inline-flex px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--pastel-yellow-light)', color: '#e67e22' }}>
-                        {grade.midterm.overall}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-gray-700">Điểm cuối kỳ</span>
-                      <div className="inline-flex px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--pastel-green-light)', color: '#00b894' }}>
-                        {grade.final.overall}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-gray-700">Điểm TB</span>
-                      <div className="inline-flex px-3 py-1 rounded-full" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                        {grade.average}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="bg-white rounded-lg shadow p-12 text-center">
-                <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p className="text-gray-500">Chọn lớp học để xem điểm</p>
-              </div>
-            )}
-          </div>
-        </>
+        <GradesByClass />
       )}
 
       {/* Edit Grade Modal */}

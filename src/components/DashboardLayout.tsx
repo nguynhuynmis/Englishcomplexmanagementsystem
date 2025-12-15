@@ -151,9 +151,19 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
 
+  // Convert user role to lowercase for case-insensitive matching
+  const userRole = user.role?.toLowerCase() || '';
+  
+  // DEBUG: Log user role and filtered menu
+  console.log('👤 [DashboardLayout] User:', user);
+  console.log('🔑 [DashboardLayout] User role (original):', user.role);
+  console.log('🔑 [DashboardLayout] User role (lowercase):', userRole);
+  
   const filteredMenuItems = menuItems.filter(item => 
-    item.roles.includes(user.role)
+    item.roles.includes(userRole)
   );
+  
+  console.log('📋 [DashboardLayout] Filtered menu items:', filteredMenuItems.map(m => m.label));
 
   return (
     <div className="min-h-screen bg-gray-50 flex">

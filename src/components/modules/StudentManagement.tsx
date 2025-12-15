@@ -44,23 +44,40 @@ export default function StudentManagement({ onNavigateToUserManagement }: Studen
         classes: classesResponse
       });
       
-      setStudentList(studentsResponse.students || []);
-      setClassList(classesResponse.classes || []);
+      // Ensure we always set arrays, even if response is malformed
+      setStudentList(Array.isArray(studentsResponse.students) ? studentsResponse.students : []);
+      setClassList(Array.isArray(classesResponse.classes) ? classesResponse.classes : []);
     } catch (err: any) {
       console.error('❌ [StudentManagement] Load data error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
+      // Set empty arrays on error to prevent filter errors
+      setStudentList([]);
+      setClassList([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredStudents = studentList.filter(student => {
-    const matchSearch = student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCampus = filterCampus === 'all' || student.campus === filterCampus;
+  const filteredStudents = Array.isArray(studentList) ? studentList.filter(student => {
+    const matchSearch = student.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.code?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCampus = filterCampus === 'all' || student.campus === filterCampus || !student.campus; // Also match if campus is null
     const matchStatus = filterStatus === 'all' || student.status === filterStatus;
     return matchSearch && matchCampus && matchStatus;
+  }) : [];
+
+  // DEBUG: Log filtering results
+  console.log('🔍 [StudentManagement] Filter Debug:', {
+    studentList,
+    studentListLength: studentList.length,
+    filteredStudents,
+    filteredStudentsLength: filteredStudents.length,
+    searchTerm,
+    filterCampus,
+    filterStatus,
+    loading,
+    error
   });
 
   const handleViewDetail = (student: Student) => {
@@ -90,11 +107,11 @@ export default function StudentManagement({ onNavigateToUserManagement }: Studen
       if (viewMode === 'edit' && selectedStudent) {
         // Update existing student
         await studentsAPI.update(student.id, student);
-        setStudentList(studentList.map(s => s.id === student.id ? student : s));
+        setStudentList(Array.isArray(studentList) ? studentList.map(s => s.id === student.id ? student : s) : [student]);
       } else {
         // Create new student
         const response = await studentsAPI.create(student);
-        setStudentList([...studentList, response.student]);
+        setStudentList(Array.isArray(studentList) ? [...studentList, response.student] : [response.student]);
       }
       
       setViewMode('list');
@@ -113,7 +130,7 @@ export default function StudentManagement({ onNavigateToUserManagement }: Studen
     try {
       console.log('[StudentManagement] Deleting student:', student.id);
       await studentsAPI.delete(student.id);
-      setStudentList(studentList.filter(s => s.id !== student.id));
+      setStudentList(Array.isArray(studentList) ? studentList.filter(s => s.id !== student.id) : []);
       setViewMode('list');
       setSelectedStudent(null);
     } catch (err: any) {
@@ -250,7 +267,7 @@ export default function StudentManagement({ onNavigateToUserManagement }: Studen
                           <div className="text-xs text-gray-500">{student.email}</div>
                         </td>
                         <td className="px-6 py-4 text-gray-600">
-                          {student.campus === 'CS001' ? 'Long Biên' : 'Hai Bà Trưng'}
+                          {student.campus || <span className="text-gray-400 text-sm italic">Chưa phân lớp</span>}
                         </td>
                         <td className="px-6 py-4">
                           {student.currentClass ? (
@@ -426,10 +443,6 @@ export default function StudentManagement({ onNavigateToUserManagement }: Studen
                     <p className="text-sm text-gray-500 mb-2">Địa chỉ</p>
                     <p className="text-gray-900">{selectedStudent.address}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">Trường học</p>
-                    <p className="text-gray-900">{selectedStudent.school}</p>
-                  </div>
                 </div>
 
                 <h2 className="text-gray-900 mb-4">Thông tin phụ huynh</h2>
@@ -449,7 +462,7 @@ export default function StudentManagement({ onNavigateToUserManagement }: Studen
                   <div>
                     <p className="text-sm text-gray-500 mb-2">Cơ sở</p>
                     <p className="text-gray-900">
-                      {selectedStudent.campus === 'CS001' ? 'Cơ sở Long Biên' : 'Cơ sở Hai Bà Trưng'}
+                      {selectedStudent.campus || <span className="text-gray-500 italic">Chưa phân lớp</span>}
                     </p>
                   </div>
                   <div>
@@ -519,7 +532,6 @@ function StudentFormView({
       dateOfBirth: '',
       gender: 'male',
       address: '',
-      school: '', // Thêm
       parentName: '',
       parentPhone: '',
       campus: 'CS001',
@@ -664,21 +676,6 @@ function StudentFormView({
                   required
                 />
               </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-gray-700 mb-2">
-                  Trường học <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.school}
-                  onChange={(e) => setFormData({ ...formData, school: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  placeholder="VD: Đại học Kinh tế Quốc dân"
-                  required
-                />
-              </div>
             </div>
           </div>
 
@@ -720,34 +717,8 @@ function StudentFormView({
           <div>
             <h2 className="text-gray-900 mb-4">Thông tin học tập</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Cơ sở <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.campus}
-                  onChange={(e) => setFormData({ ...formData, campus: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                >
-                  <option value="CS001">Cơ sở Long Biên</option>
-                  <option value="CS002">Cơ sở Hai Bà Trưng</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Ngày nhập học <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.enrollDate}
-                  onChange={(e) => setFormData({ ...formData, enrollDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  required
-                />
-              </div>
+              {/* REMOVED: Campus field - campus is determined by class enrollment */}
+              {/* REMOVED: Enrollment date field - not needed in edit form */}
 
               <div>
                 <label className="block text-gray-700 mb-2">
@@ -770,6 +741,8 @@ function StudentFormView({
                 * Tên đăng nhập sẽ được tạo tự động theo format: Tên + Họ tên đệm viết tắt
                 <br />
                 VD: Nguyên Thị Khánh Huyền → huyenntk
+                <br />
+                * Cơ sở sẽ được xác định khi phân lớp cho học viên
               </p>
             )}
           </div>

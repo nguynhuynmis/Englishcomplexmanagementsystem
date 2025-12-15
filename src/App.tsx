@@ -41,6 +41,8 @@ export interface User {
   parentPhone?: string;
   bio?: string;
   code?: string;
+  teacherId?: number; // ID from teachers table
+  studentId?: number; // ID from students table
 }
 
 function App() {

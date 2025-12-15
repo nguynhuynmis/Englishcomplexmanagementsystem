@@ -22,7 +22,6 @@ export interface Student {
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
   address: string;
-  school: string; // Thêm trường học
   parentName: string;
   parentPhone: string;
   campus: string;
@@ -53,9 +52,11 @@ export interface Teacher {
   certificates: string[];
   certificateProofs?: { [key: string]: { fileName: string; uploadedAt: string } }; // Minh chứng chứng chỉ khác
   specialization: string[];
+  experienceYears?: number; // Số năm kinh nghiệm
   joinDate: string;
   status: 'active' | 'inactive';
   avatar?: string;
+  isFirstLogin?: boolean;
 }
 
 export interface AcademicStaff {
@@ -169,7 +170,6 @@ export const students: Student[] = [
     dateOfBirth: '2004-06-21',
     gender: 'female',
     address: '58 Ngõ Mai Hương, Bạch Mai, Hà Nội',
-    school: 'Đại học Kinh tế Quốc dân',
     parentName: 'Nguyễn Đình Quang Minh',
     parentPhone: '0388033504',
     campus: 'CS002', // Cơ sở Hai Bà Trưng
@@ -188,7 +188,6 @@ export const students: Student[] = [
     dateOfBirth: '2005-07-22',
     gender: 'male',
     address: '456 Giải Phóng, Hai Bà Trưng, Hà Nội',
-    school: 'Đại học Ngoại thương',
     parentName: 'Trần Thị Lan',
     parentPhone: '0976543210',
     campus: 'CS002',
@@ -207,7 +206,6 @@ export const students: Student[] = [
     dateOfBirth: '2006-11-08',
     gender: 'male',
     address: '789 Nguyễn Trãi, Thanh Xuân, Hà Nội',
-    school: 'THPT Chu Văn An',
     parentName: 'Lê Văn Hùng',
     parentPhone: '0965432109',
     campus: 'CS001',
@@ -226,7 +224,6 @@ export const students: Student[] = [
     dateOfBirth: '2005-05-30',
     gender: 'female',
     address: '321 Lê Duẩn, Ba Đình, Hà Nội',
-    school: 'Đại học Sư phạm Hà Nội',
     parentName: 'Phạm Thị Hoa',
     parentPhone: '0954321098',
     campus: 'CS002',
@@ -245,7 +242,6 @@ export const students: Student[] = [
     dateOfBirth: '2005-09-12',
     gender: 'male',
     address: '45 Đê La Thành, Đống Đa, Hà Nội',
-    school: 'Đại học Bách Khoa Hà Nội',
     parentName: 'Võ Văn Hải',
     parentPhone: '0987123456',
     campus: 'CS001',
@@ -264,7 +260,6 @@ export const students: Student[] = [
     dateOfBirth: '2006-02-28',
     gender: 'female',
     address: '78 Giảng Võ, Ba Đình, Hà Nội',
-    school: 'THPT Chu Văn An',
     parentName: 'Đỗ Văn Long',
     parentPhone: '0978234567',
     campus: 'CS001',
@@ -283,7 +278,6 @@ export const students: Student[] = [
     dateOfBirth: '2005-12-10',
     gender: 'male',
     address: '234 Xã Đàn, Đống Đa, Hà Nội',
-    school: 'Đại học Quốc gia Hà Nội',
     parentName: 'Bùi Văn Thắng',
     parentPhone: '0989345678',
     campus: 'CS002',
@@ -302,7 +296,6 @@ export const students: Student[] = [
     dateOfBirth: '2006-04-18',
     gender: 'female',
     address: '56 Láng Hạ, Đống Đa, Hà Nội',
-    school: 'THPT Nguyễn Huệ',
     parentName: 'Ngô Văn Tùng',
     parentPhone: '0990456789',
     campus: 'CS001',
@@ -321,7 +314,6 @@ export const students: Student[] = [
     dateOfBirth: '2005-08-25',
     gender: 'male',
     address: '90 Hoàng Cầu, Đống Đa, Hà Nội',
-    school: 'Đại học Ngoại ngữ - ĐHQGHN',
     parentName: 'Trương Văn Nam',
     parentPhone: '0992567890',
     campus: 'CS002',
@@ -340,7 +332,6 @@ export const students: Student[] = [
     dateOfBirth: '2006-03-14',
     gender: 'female',
     address: '12 Kim Mã, Ba Đình, Hà Nội',
-    school: 'THPT Amsterdam',
     parentName: 'Hoàng Văn Bình',
     parentPhone: '0994678901',
     campus: 'CS001',
@@ -359,7 +350,6 @@ export const students: Student[] = [
     dateOfBirth: '2005-11-20',
     gender: 'male',
     address: '67 Thái Hà, Đống Đa, Hà Nội',
-    school: 'Đại học Thương mại',
     parentName: 'Đinh Văn Trung',
     parentPhone: '0996789012',
     campus: 'CS002',
@@ -378,7 +368,6 @@ export const students: Student[] = [
     dateOfBirth: '2006-01-08',
     gender: 'female',
     address: '89 Nguyễn Chí Thanh, Đống Đa, Hà Nội',
-    school: 'THPT Lê Quý Đôn',
     parentName: 'Phan Văn Minh',
     parentPhone: '0998890123',
     campus: 'CS001',
@@ -416,9 +405,11 @@ export const teachers: Teacher[] = [
       'IELTS 8.5': { fileName: 'ielts_8.5_lanntm.pdf', uploadedAt: '2023-05-10' },
     },
     specialization: ['IELTS Speaking', 'IELTS Writing', 'Academic English'],
+    experienceYears: 8,
     joinDate: '2020-08-01',
     status: 'active',
     avatar: 'lanntm.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV002',
@@ -443,9 +434,11 @@ export const teachers: Teacher[] = [
       'MA in English Linguistics': { fileName: 'ma_binhtv.pdf', uploadedAt: '2023-05-10' },
     },
     specialization: ['IELTS Reading', 'IELTS Listening', 'IELTS Intermediate'],
+    experienceYears: 10,
     joinDate: '2019-06-15',
     status: 'active',
     avatar: 'binhtv.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV003',
@@ -470,9 +463,11 @@ export const teachers: Teacher[] = [
       'TKT': { fileName: 'tkt_anhltpt.pdf', uploadedAt: '2023-05-10' },
     },
     specialization: ['IELTS Foundation', 'IELTS Speaking', 'IELTS Writing'],
+    experienceYears: 5,
     joinDate: '2021-09-01',
     status: 'active',
     avatar: 'anhltpt.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV004',
@@ -498,9 +493,11 @@ export const teachers: Teacher[] = [
       'CELTA': { fileName: 'celta_tuanhm.pdf', uploadedAt: '2023-05-10' },
     },
     specialization: ['IELTS Advanced', 'IELTS All Skills', 'Exam Strategies'],
+    experienceYears: 12,
     joinDate: '2018-03-01',
     status: 'active',
     avatar: 'tuanhm.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV005',
@@ -525,9 +522,11 @@ export const teachers: Teacher[] = [
       'TESOL': { fileName: 'tesol_hapt.pdf', uploadedAt: '2023-06-15' },
     },
     specialization: ['IELTS Listening', 'IELTS Reading', 'IELTS Foundation'],
+    experienceYears: 7,
     joinDate: '2020-09-01',
     status: 'active',
     avatar: 'hapt.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV006',
@@ -552,9 +551,11 @@ export const teachers: Teacher[] = [
       'MBA': { fileName: 'mba_anhvtk.pdf', uploadedAt: '2023-07-20' },
     },
     specialization: ['IELTS Writing', 'IELTS Reading', 'Academic English'],
+    experienceYears: 9,
     joinDate: '2019-11-01',
     status: 'active',
     avatar: 'anhvtk.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV007',
@@ -579,9 +580,11 @@ export const teachers: Teacher[] = [
       'CELTA': { fileName: 'celta_vietdq.pdf', uploadedAt: '2023-08-10' },
     },
     specialization: ['IELTS Speaking', 'Pronunciation', 'Conversation'],
+    experienceYears: 3,
     joinDate: '2021-01-15',
     status: 'active',
     avatar: 'vietdq.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV008',
@@ -606,9 +609,11 @@ export const teachers: Teacher[] = [
       'MA Linguistics': { fileName: 'ma_tungnt.pdf', uploadedAt: '2023-09-05' },
     },
     specialization: ['IELTS Advanced', 'IELTS Writing', 'Academic English'],
+    experienceYears: 10,
     joinDate: '2019-08-01',
     status: 'active',
     avatar: 'tungnt.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV009',
@@ -631,9 +636,11 @@ export const teachers: Teacher[] = [
       'TKT': { fileName: 'tkt_thaobt.pdf', uploadedAt: '2023-10-12' },
     },
     specialization: ['IELTS Foundation', 'IELTS Beginner', 'IELTS Listening'],
+    experienceYears: 6,
     joinDate: '2021-06-01',
     status: 'active',
     avatar: 'thaobt.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV010',
@@ -656,9 +663,11 @@ export const teachers: Teacher[] = [
       'Published Author': { fileName: 'author_hangtm.pdf', uploadedAt: '2023-11-08' },
     },
     specialization: ['IELTS Writing Task 1', 'IELTS Writing Task 2', 'Academic Writing'],
+    experienceYears: 8,
     joinDate: '2020-02-01',
     status: 'active',
     avatar: 'hangtm.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV011',
@@ -683,9 +692,11 @@ export const teachers: Teacher[] = [
       'TESOL': { fileName: 'tesol_anhtm_gv.pdf', uploadedAt: '2023-12-01' },
     },
     specialization: ['IELTS Listening', 'IELTS Reading', 'IELTS Intermediate'],
+    experienceYears: 7,
     joinDate: '2020-07-01',
     status: 'active',
     avatar: 'anhtm_gv.jpg',
+    isFirstLogin: false,
   },
   {
     id: 'GV012',
@@ -711,9 +722,11 @@ export const teachers: Teacher[] = [
       'DELTA': { fileName: 'delta_datnv.pdf', uploadedAt: '2023-12-05' },
     },
     specialization: ['IELTS Advanced', 'IELTS Master', 'All Skills'],
+    experienceYears: 9,
     joinDate: '2019-09-01',
     status: 'active',
     avatar: 'datnv.jpg',
+    isFirstLogin: false,
   },
 ];
 

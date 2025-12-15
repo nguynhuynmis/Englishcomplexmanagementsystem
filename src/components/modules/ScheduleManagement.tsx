@@ -34,7 +34,9 @@ export default function ScheduleManagement({ user }: ScheduleManagementProps) {
       console.log('🔄 [ScheduleManagement] Loading data...');
       const response = await schedulesAPI.getAll();
       console.log('✅ [ScheduleManagement] Data loaded:', response);
-      setSchedulesList(response.schedules || []);
+      // API returns { schedules: [...] }, unwrap it
+      const schedulesArray = response?.schedules || response || [];
+      setSchedulesList(schedulesArray);
     } catch (err: any) {
       console.error('❌ [ScheduleManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
@@ -52,7 +54,10 @@ export default function ScheduleManagement({ user }: ScheduleManagementProps) {
     
     // Filter by role
     if (user.role === 'teacher') {
-      return matchDate && matchClass && matchCampus && matchStatus && schedule.teacherId === user.id;
+      // FIXED: Use user.teacherId to match schedule.teacherId
+      const userTeacherId = user.teacherId?.toString() || '';
+      console.log('👨‍🏫 [ScheduleManagement] Teacher filter - User teacherId:', userTeacherId, 'Schedule teacherId:', schedule.teacherId);
+      return matchDate && matchClass && matchCampus && matchStatus && schedule.teacherId === userTeacherId;
     }
     if (user.role === 'student') {
       const studentData = students.find(s => s.id === user.id);

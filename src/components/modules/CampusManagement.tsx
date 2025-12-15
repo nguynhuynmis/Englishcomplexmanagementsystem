@@ -45,7 +45,7 @@ export default function CampusManagement() {
       console.log('🔄 [CampusManagement] Loading data...');
       const response = await campusesAPI.getAll();
       console.log('✅ [CampusManagement] Data loaded:', response);
-      setCampuses(response.campuses || []);
+      setCampuses(response || []); // FIXED: Backend returns direct array, not {campuses: [...]}
     } catch (err: any) {
       console.error('❌ [CampusManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');

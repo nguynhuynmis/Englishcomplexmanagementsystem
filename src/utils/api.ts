@@ -73,7 +73,13 @@ export const authAPI = {
 export const studentsAPI = {
   getAll: async () => {
     const response = await fetch(`${API_BASE_URL}/students`, { headers });
-    return handleResponse(response);
+    return handleResponse(response); // ✅ FIX: Don't double-wrap, server already returns { students: [...] }
+  },
+
+  // Get students without a class (available for enrollment)
+  getAvailable: async () => {
+    const response = await fetch(`${API_BASE_URL}/students/available`, { headers });
+    return handleResponse(response); // Backend returns { students: [...] }
   },
 
   create: async (student: any) => {
@@ -110,7 +116,7 @@ export const studentsAPI = {
 export const teachersAPI = {
   getAll: async () => {
     const response = await fetch(`${API_BASE_URL}/teachers`, { headers });
-    return handleResponse(response);
+    return handleResponse(response); // ✅ FIX: Don't double-wrap, server already returns { teachers: [...] }
   },
 
   create: async (teacher: any) => {
@@ -141,13 +147,24 @@ export const teachersAPI = {
 };
 
 // ============================================
+// COURSES APIs
+// ============================================
+
+export const coursesAPI = {
+  getAll: async () => {
+    const response = await fetch(`${API_BASE_URL}/courses`, { headers });
+    return handleResponse(response);
+  }
+};
+
+// ============================================
 // CLASSES APIs
 // ============================================
 
 export const classesAPI = {
   getAll: async () => {
     const response = await fetch(`${API_BASE_URL}/classes`, { headers });
-    return handleResponse(response);
+    return handleResponse(response); // Backend already returns { classes: [...] }
   },
 
   create: async (classData: any) => {
@@ -172,6 +189,16 @@ export const classesAPI = {
     const response = await fetch(`${API_BASE_URL}/classes/${id}`, {
       method: 'DELETE',
       headers
+    });
+    return handleResponse(response);
+  },
+
+  // Enroll students to class
+  enroll: async (classId: string, studentIds: string[]) => {
+    const response = await fetch(`${API_BASE_URL}/classes/${classId}/enroll`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ studentIds })
     });
     return handleResponse(response);
   }
@@ -221,7 +248,7 @@ export const campusesAPI = {
 export const schedulesAPI = {
   getAll: async () => {
     const response = await fetch(`${API_BASE_URL}/schedules`, { headers });
-    return handleResponse(response);
+    return handleResponse(response); // Backend already returns { schedules: [...] }
   },
 
   create: async (schedule: any) => {
@@ -250,7 +277,12 @@ export const schedulesAPI = {
 export const gradesAPI = {
   getAll: async () => {
     const response = await fetch(`${API_BASE_URL}/grades`, { headers });
-    return handleResponse(response);
+    return handleResponse(response); // Backend already returns { grades: [...] }
+  },
+
+  getByClass: async () => {
+    const response = await fetch(`${API_BASE_URL}/grades/by-class`, { headers });
+    return handleResponse(response); // Returns { classSummaries: [...] }
   },
 
   create: async (grade: any) => {
@@ -316,7 +348,8 @@ export const documentsAPI = {
 export const assignmentsAPI = {
   getAll: async () => {
     const response = await fetch(`${API_BASE_URL}/assignments`, { headers });
-    return handleResponse(response);
+    const assignments = await handleResponse(response);
+    return { assignments }; // Wrap in object for consistent API interface
   },
 
   create: async (assignment: any) => {

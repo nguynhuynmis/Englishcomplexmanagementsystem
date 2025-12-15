@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Eye, Search, Shield, ArrowLeft, Save, X as XIcon, Users, Key, Trash2 } from 'lucide-react';
 import { usersAPI } from '../../utils/api';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import UserFormView from './UserFormView';
 
 interface SystemUser {
@@ -8,7 +9,7 @@ interface SystemUser {
   code?: string;
   username: string;
   fullName: string;
-  role: 'academic' | 'teacher' | 'student' | 'director';
+  role: 'academic' | 'teacher' | 'student' | 'director' | 'admin' | 'user';
   campus?: string;
   status: 'active' | 'inactive';
   email: string;
@@ -37,6 +38,8 @@ const roleLabels = {
   teacher: 'Giáo viên',
   student: 'Học viên',
   director: 'Ban Giám đốc',
+  admin: 'Quản trị viên',
+  user: 'Người dùng',
 };
 
 const roleColors = {
@@ -44,6 +47,18 @@ const roleColors = {
   teacher: { bg: 'var(--brand-primary-100)', text: 'var(--brand-primary-700)' },
   student: { bg: 'var(--pastel-green-light)', text: '#00b894' },
   director: { bg: 'var(--pastel-yellow-light)', text: '#e67e22' },
+  admin: { bg: '#fce4ec', text: '#c2185b' },
+  user: { bg: '#e0e0e0', text: '#616161' },
+};
+
+// Helper function to safely get role colors
+const getRoleColor = (role: string) => {
+  return roleColors[role as keyof typeof roleColors] || roleColors.user;
+};
+
+// Helper function to safely get role label
+const getRoleLabel = (role: string) => {
+  return roleLabels[role as keyof typeof roleLabels] || role;
 };
 
 const defaultRolePermissions: RolePermissions[] = [
@@ -109,6 +124,51 @@ const defaultRolePermissions: RolePermissions[] = [
     ],
     description: 'Quyền xem và báo cáo cấp cao',
   },
+  {
+    id: 'admin',
+    roleName: 'admin',
+    roleLabel: 'Quản trị viên',
+    permissions: [
+      'Quản lý cơ sở',
+      'Quản lý học viên',
+      'Quản lý giảng viên',
+      'Quản lý lớp học',
+      'Quản lý lịch học',
+      'Quản lý điểm số',
+      'Quản lý tài liệu-thông báo',
+      'Quản lý bài tập',
+      'Quản lý phản hồi',
+      'Xem báo cáo-thống kê',
+      'Quản lý người dùng',
+      'Xem tất cả báo cáo',
+      'Xem thống kê tổng quan',
+      'Xem thông tin các cơ sở',
+      'Xem lớp học của mình',
+      'Xem lịch dạy',
+      'Xem lịch học',
+      'Xem điểm của mình',
+      'Xem và tải tài liệu',
+      'Xem bài tập',
+      'Xem phản hồi',
+      'Xem tất cả phản hồi',
+      'Điểm danh học viên (chỉ lớp mình dạy)',
+      'Nhập điểm học viên',
+      'Tải tài liệu lên',
+      'Tạo bài tập',
+      'Tạo thông báo chính thức',
+      'Chấm bài tập',
+      'Nộp bài tập',
+      'Gửi phản hồi',
+    ],
+    description: 'Quyền quản trị viên cấp cao',
+  },
+  {
+    id: 'user',
+    roleName: 'user',
+    roleLabel: 'Người dùng',
+    permissions: [],
+    description: 'Quyền người dùng cơ bản',
+  },
 ];
 
 // All available permissions in the system
@@ -165,6 +225,7 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
   const [tabMode, setTabMode] = useState<TabMode>('users');
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
   const [selectedRole, setSelectedRole] = useState<RolePermissions | null>(null);
+  const [showMigrationBanner, setShowMigrationBanner] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -184,7 +245,16 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
       console.log('🔄 [UserManagement] Loading data...');
       const response = await usersAPI.getAll();
       console.log('✅ [UserManagement] Data loaded:', response);
-      setUsers(response.users || []);
+      
+      // DEBUG: Check status values
+      if (response && response.length > 0) {
+        console.log('🔍 [UserManagement] First user status:', response[0].status, typeof response[0].status);
+        response.forEach((user, idx) => {
+          console.log(`User ${idx}: status = "${user.status}" (type: ${typeof user.status})`);
+        });
+      }
+      
+      setUsers(response || []); // FIXED: Backend returns direct array, not {users: [...]}
     } catch (err: any) {
       console.error('❌ [UserManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
@@ -244,14 +314,43 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-gray-900 text-[16px]">Quản lý người dùng</h1>
-          <button
-            onClick={handleCreate}
-            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90"
-            style={{ backgroundColor: 'var(--brand-primary)' }}
-          >
-            <Plus className="w-4 h-4" />
-            Thêm người dùng
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (window.confirm('Migrate tất cả users cũ để tạo mã HV/GV? (Chỉ cần chạy 1 lần)')) {
+                  try {
+                    setLoading(true);
+                    const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-e2861589/migrate-user-records`, {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${publicAnonKey}`,
+                        'Content-Type': 'application/json'
+                      }
+                    });
+                    const result = await response.json();
+                    alert(`✅ Migration hoàn tất!\n\n${result.message}\n\nTổng users: ${result.totalUsers}\nĐã tạo ${result.studentsCreated} học viên\nĐã tạo ${result.teachersCreated} giáo viên\nBỏ qua: ${result.skipped}`);
+                    loadData(); // Reload to see new codes
+                  } catch (err: any) {
+                    alert('❌ Lỗi migration: ' + err.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
+              title="Tạo mã HV/GV cho users cũ"
+            >
+              🔄 Migrate Data
+            </button>
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              <Plus className="w-4 h-4" />
+              Thêm người dùng
+            </button>
+          </div>
         </div>
 
         {/* Loading State */}
@@ -341,6 +440,8 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
                     <option value="teacher">Giáo viên</option>
                     <option value="student">Học viên</option>
                     <option value="director">Ban Giám đốc</option>
+                    <option value="admin">Quản trị viên</option>
+                    <option value="user">Người dùng</option>
                   </select>
                 </div>
 
@@ -392,11 +493,11 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
                           <span
                             className="inline-flex px-3 py-1 rounded-full text-sm"
                             style={{
-                              backgroundColor: roleColors[user.role].bg,
-                              color: roleColors[user.role].text,
+                              backgroundColor: getRoleColor(user.role).bg,
+                              color: getRoleColor(user.role).text,
                             }}
                           >
-                            {roleLabels[user.role]}
+                            {getRoleLabel(user.role)}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -411,7 +512,7 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
                               color: user.status === 'active' ? '#00b894' : '#d63031',
                             }}
                           >
-                            {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu'}
+                            {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -480,8 +581,8 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
                 <span
                   className="inline-flex px-3 py-1 rounded-full text-sm"
                   style={{
-                    backgroundColor: roleColors[selectedUser.role].bg,
-                    color: roleColors[selectedUser.role].text,
+                    backgroundColor: getRoleColor(selectedUser.role).bg,
+                    color: getRoleColor(selectedUser.role).text,
                   }}
                 >
                   {roleLabels[selectedUser.role]}
@@ -531,7 +632,7 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
                     color: selectedUser.status === 'active' ? '#00b894' : '#d63031',
                   }}
                 >
-                  {selectedUser.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu'}
+                  {selectedUser.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
                 </span>
               </div>
             </div>
@@ -843,6 +944,8 @@ function RolesManagementView({
                             <option value="teacher">Giảng viên</option>
                             <option value="academic">Học vụ</option>
                             <option value="director">Giám đốc</option>
+                            <option value="admin">Quản trị viên</option>
+                            <option value="user">Người dùng</option>
                           </select>
                         </div>
                       ))}

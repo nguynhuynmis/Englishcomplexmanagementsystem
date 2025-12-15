@@ -56,7 +56,10 @@ export default function ClassManagement({ user }: ClassManagementProps) {
       console.log('🔄 [ClassManagement] Loading data...');
       const response = await classesAPI.getAll();
       console.log('✅ [ClassManagement] Data loaded:', response);
-      setClasses(response.classes || []);
+      // API returns { classes: [...] }, unwrap it
+      const classesArray = response?.classes || response || [];
+      console.log('📊 [ClassManagement] Sample class status:', classesArray?.[0]?.status, 'Type:', typeof classesArray?.[0]?.status);
+      setClasses(classesArray);
     } catch (err: any) {
       console.error('❌ [ClassManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
@@ -66,9 +69,9 @@ export default function ClassManagement({ user }: ClassManagementProps) {
   };
 
   const filteredClasses = classes.filter(classItem => {
-    const matchSearch = classItem.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCampus = filterCampus === 'all' || classItem.campus === filterCampus;
-    const matchLevel = filterLevel === 'all' || classItem.level === filterLevel;
+    const matchSearch = classItem?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
+    const matchCampus = filterCampus === 'all' || classItem?.campus === filterCampus;
+    const matchLevel = filterLevel === 'all' || classItem?.level === filterLevel;
     return matchSearch && matchCampus && matchLevel;
   });
 
@@ -219,11 +222,19 @@ export default function ClassManagement({ user }: ClassManagementProps) {
                     <span
                       className="inline-flex px-3 py-1 rounded-full text-sm"
                       style={{
-                        backgroundColor: classItem.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
-                        color: classItem.status === 'active' ? '#00b894' : '#d63031',
+                        backgroundColor: 
+                          classItem.status === 'active' ? 'var(--pastel-green-light)' : 
+                          classItem.status === 'completed' ? '#fee' : 
+                          '#fef3c7',
+                        color: 
+                          classItem.status === 'active' ? '#00b894' : 
+                          classItem.status === 'completed' ? '#d63031' : 
+                          '#d97706',
                       }}
                     >
-                      {classItem.status === 'active' ? 'Đang học' : 'Đã kết thúc'}
+                      {classItem.status === 'active' ? 'Đang hoạt động' : 
+                       classItem.status === 'completed' ? 'Đã hoàn thành' : 
+                       'Chưa bắt đầu'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -319,9 +330,27 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
 }) {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [availableStudents, setAvailableStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [enrolling, setEnrolling] = useState(false); // NEW: Track enrollment in progress
 
-  // Lấy học viên chưa có lớp hoặc đang học lớp khác
-  const availableStudents = students.filter(s => !s.currentClass || s.currentClass !== classItem.id);
+  // Load available students from API
+  useEffect(() => {
+    loadAvailableStudents();
+  }, []);
+
+  const loadAvailableStudents = async () => {
+    try {
+      setLoading(true);
+      const response = await studentsAPI.getAvailable();
+      setAvailableStudents(response?.students || []);
+    } catch (error) {
+      console.error('❌ [EnrollModal] Error loading students:', error);
+      setAvailableStudents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const filteredStudents = availableStudents.filter(s => 
     s.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -336,15 +365,36 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
     }
   };
 
-  const handleEnroll = () => {
-    if (selectedStudents.length > 0) {
-      // Kiểm tra lớp đầy
-      const availableSlots = classItem.maxStudents - classItem.totalStudents;
-      if (selectedStudents.length > availableSlots) {
-        alert(`Lớp chỉ còn ${availableSlots} chỗ trống. Bạn đang chọn ${selectedStudents.length} học viên. Vui lòng giảm số lượng học viên hoặc chọn lớp khác.`);
-        return;
-      }
+  const handleEnroll = async () => { // Make async
+    if (selectedStudents.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 học viên');
+      return;
+    }
+
+    // Kiểm tra lớp đầy
+    const availableSlots = classItem.maxStudents - classItem.totalStudents;
+    if (selectedStudents.length > availableSlots) {
+      alert(`Lớp chỉ còn ${availableSlots} chỗ trống. Bạn đang chọn ${selectedStudents.length} học viên. Vui lòng giảm số lượng học viên hoặc chọn lớp khác.`);
+      return;
+    }
+
+    try {
+      setEnrolling(true);
+      console.log('📝 [EnrollModal] Enrolling students:', { classId: classItem.id, studentIds: selectedStudents });
+      
+      // Call API to enroll students
+      const response = await classesAPI.enroll(classItem.id, selectedStudents);
+      
+      console.log('✅ [EnrollModal] Enrollment successful:', response);
+      alert(`Đã ghi danh thành công ${response.enrolled} học viên!`);
+      
+      // Call parent callback to update UI
       onEnroll(selectedStudents);
+    } catch (error: any) {
+      console.error('❌ [EnrollModal] Enrollment error:', error);
+      alert(`Lỗi: ${error.message || 'Không thể ghi danh học viên'}`);
+    } finally {
+      setEnrolling(false);
     }
   };
 
@@ -376,65 +426,76 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
 
           <p className="text-gray-700 mb-3">Chọn học viên cần ghi danh ({filteredStudents.length} khả dụng):</p>
           <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="max-h-96 overflow-y-auto">
-              <table className="w-full">
-                <thead style={{ backgroundColor: 'var(--brand-primary-50)' }} className="sticky top-0">
-                  <tr>
-                    <th className="px-4 py-3 text-left">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4"
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedStudents(filteredStudents.map(s => s.id));
-                          } else {
-                            setSelectedStudents([]);
-                          }
-                        }}
-                        checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Mã HV</th>
-                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Họ tên</th>
-                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Email</th>
-                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Số ĐT</th>
-                    <th className="px-4 py-3 text-left text-gray-700 text-sm">Lớp hiện tại</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredStudents.map((student) => (
-                    <tr
-                      key={student.id}
-                      className={`hover:bg-gray-50 cursor-pointer ${selectedStudents.includes(student.id) ? 'bg-blue-50' : ''}`}
-                      onClick={() => toggleStudent(student.id)}
-                    >
-                      <td className="px-4 py-3">
+            {loading ? (
+              <div className="p-12 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-3" style={{ borderColor: 'var(--brand-primary)' }}></div>
+                <p className="text-gray-600 text-sm">Đang tải danh sách học viên...</p>
+              </div>
+            ) : filteredStudents.length === 0 ? (
+              <div className="p-12 text-center">
+                <p className="text-gray-500">Không có học viên khả dụng</p>
+              </div>
+            ) : (
+              <div className="max-h-96 overflow-y-auto">
+                <table className="w-full">
+                  <thead style={{ backgroundColor: 'var(--brand-primary-50)' }} className="sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left">
                         <input
                           type="checkbox"
-                          checked={selectedStudents.includes(student.id)}
-                          onChange={() => toggleStudent(student.id)}
                           className="w-4 h-4"
-                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedStudents(filteredStudents.map(s => s.id));
+                            } else {
+                              setSelectedStudents([]);
+                            }
+                          }}
+                          checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
                         />
-                      </td>
-                      <td className="px-4 py-3 text-gray-900 text-sm">{student.code}</td>
-                      <td className="px-4 py-3 text-gray-900">{student.fullName}</td>
-                      <td className="px-4 py-3 text-gray-600 text-sm">{student.email}</td>
-                      <td className="px-4 py-3 text-gray-600 text-sm">{student.phone}</td>
-                      <td className="px-4 py-3 text-sm">
-                        {student.currentClass ? (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                            Đã có lớp
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">Chưa xếp lớp</span>
-                        )}
-                      </td>
+                      </th>
+                      <th className="px-4 py-3 text-left text-gray-700 text-sm">Mã HV</th>
+                      <th className="px-4 py-3 text-left text-gray-700 text-sm">Họ tên</th>
+                      <th className="px-4 py-3 text-left text-gray-700 text-sm">Email</th>
+                      <th className="px-4 py-3 text-left text-gray-700 text-sm">Số ĐT</th>
+                      <th className="px-4 py-3 text-left text-gray-700 text-sm">Lớp hiện tại</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredStudents.map((student) => (
+                      <tr
+                        key={student.id}
+                        className={`hover:bg-gray-50 cursor-pointer ${selectedStudents.includes(student.id) ? 'bg-blue-50' : ''}`}
+                        onClick={() => toggleStudent(student.id)}
+                      >
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.includes(student.id)}
+                            onChange={() => toggleStudent(student.id)}
+                            className="w-4 h-4"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-gray-900 text-sm">{student.code}</td>
+                        <td className="px-4 py-3 text-gray-900">{student.fullName}</td>
+                        <td className="px-4 py-3 text-gray-600 text-sm">{student.email}</td>
+                        <td className="px-4 py-3 text-gray-600 text-sm">{student.phone}</td>
+                        <td className="px-4 py-3 text-sm">
+                          {student.currentClass ? (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                              Đã có lớp
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Chưa xếp lớp</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {selectedStudents.length > 0 && (
@@ -449,15 +510,23 @@ function EnrollModal({ classItem, onClose, onEnroll }: {
         <div className="p-6 border-t border-gray-200 flex gap-3">
           <button
             onClick={handleEnroll}
-            disabled={selectedStudents.length === 0 || selectedStudents.length > (classItem.maxStudents - classItem.totalStudents)}
-            className="flex-1 px-4 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            style={{ backgroundColor: selectedStudents.length === 0 ? '#ccc' : 'var(--brand-primary)' }}
+            disabled={enrolling || selectedStudents.length === 0 || selectedStudents.length > (classItem.maxStudents - classItem.totalStudents)}
+            className="flex-1 px-4 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ backgroundColor: (enrolling || selectedStudents.length === 0) ? '#ccc' : 'var(--brand-primary)' }}
           >
-            Ghi danh ({selectedStudents.length})
+            {enrolling ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                <span>Đang ghi danh...</span>
+              </>
+            ) : (
+              <span>Ghi danh ({selectedStudents.length})</span>
+            )}
           </button>
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            disabled={enrolling}
+            className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Hủy
           </button>
@@ -529,11 +598,19 @@ function DetailView({ classItem, onClose }: {
                 <span
                   className="inline-flex px-3 py-1 rounded-full text-sm"
                   style={{
-                    backgroundColor: classItem.status === 'active' ? 'var(--pastel-green-light)' : '#fee',
-                    color: classItem.status === 'active' ? '#00b894' : '#d63031',
+                    backgroundColor: 
+                      classItem.status === 'active' ? 'var(--pastel-green-light)' : 
+                      classItem.status === 'completed' ? '#fee' : 
+                      '#fef3c7',
+                    color: 
+                      classItem.status === 'active' ? '#00b894' : 
+                      classItem.status === 'completed' ? '#d63031' : 
+                      '#d97706',
                   }}
                 >
-                  {classItem.status === 'active' ? 'Đang học' : 'Đã kết thúc'}
+                  {classItem.status === 'active' ? 'Đang hoạt động' : 
+                   classItem.status === 'completed' ? 'Đã hoàn thành' : 
+                   'Chưa bắt đầu'}
                 </span>
               </div>
             </div>

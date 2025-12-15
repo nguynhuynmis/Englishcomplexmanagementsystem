@@ -22,34 +22,34 @@ interface UserFormViewProps {
 }
 
 export default function UserFormView({ user, initialRole, onBack, onSave }: UserFormViewProps) {
-  const [formData, setFormData] = useState<any>(
-    user || {
-      id: '',
-      username: '',
-      fullName: '',
-      role: initialRole || 'student',
-      status: 'active',
-      email: '',
-      phone: '',
-      // Student fields
-      studentCode: '',
-      dateOfBirth: '',
-      gender: 'male',
-      address: '',
-      parentName: '',
-      parentPhone: '',
-      enrollmentDate: '',
-      campus: '',
-      // Teacher fields
-      teacherCode: '',
-      specialization: '',
-      salary: '',
-      startDate: '',
-      teachingCampus: '',
-      // Password (only for new users)
-      password: '',
-    }
-  );
+  const [formData, setFormData] = useState<any>({
+    id: user?.id || '',
+    username: user?.username || '',
+    fullName: user?.fullName || '',
+    role: user?.role || initialRole || 'student',
+    status: user?.status || 'active',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    // Student fields
+    studentCode: '',
+    dateOfBirth: '',
+    gender: 'male',
+    address: '',
+    parentName: '',
+    parentPhone: '',
+    campus: user?.campus || '',
+    enrollmentDate: '', // Add this missing field
+    // Teacher fields
+    teacherCode: '',
+    specialization: '',
+    bio: '',
+    experienceYears: '',
+    certifications: '',
+    startDate: '',
+    teachingCampus: user?.campus || '',
+    // Password (only for new users)
+    password: '123456',
+  });
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -58,47 +58,159 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    // Basic fields validation
-    if (!formData.username.trim()) newErrors.username = 'Tên đăng nhập không được để trống';
-    if (!user && !formData.password) newErrors.password = 'Mật khẩu không được để trống';
-    if (!user && formData.password.length < 6) newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
-    if (!formData.fullName.trim()) newErrors.fullName = 'Họ và tên không được để trống';
-    if (!formData.email.trim()) newErrors.email = 'Email không được để trống';
-    if (!formData.phone.trim()) newErrors.phone = 'Số điện thoại không được để trống';
-
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (formData.email && !emailRegex.test(formData.email)) {
-      newErrors.email = 'Email không hợp lệ';
+    // ============================================
+    // SECTION 1: THÔNG TIN TÀI KHOẢN
+    // ============================================
+    
+    // Username validation
+    if (!formData.username.trim()) {
+      newErrors.username = 'Tên đăng nhập không được để trống';
+    } else if (formData.username.trim().length < 3) {
+      newErrors.username = 'Tên đăng nhập phải có ít nhất 3 ký tự';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+      newErrors.username = 'Tên đăng nhập chỉ được chứa chữ cái, số và dấu gạch dưới';
     }
 
-    // Phone format validation (Vietnam phone number: 10 digits starting with 0)
-    const phoneRegex = /^0\d{9}$/;
-    if (formData.phone && !phoneRegex.test(formData.phone)) {
-      newErrors.phone = 'Số điện thoại phải có 10 chữ số và bắt đầu bằng 0';
+    // ============================================
+    // SECTION 2: THÔNG TIN CÁ NHÂN
+    // ============================================
+    
+    // Full Name validation
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'Họ và tên không được để trống';
+    } else if (formData.fullName.trim().length < 2) {
+      newErrors.fullName = 'Họ và tên phải có ít nhất 2 ký tự';
+    } else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(formData.fullName)) {
+      newErrors.fullName = 'Họ và tên chỉ được chứa chữ cái và khoảng trắng';
+    }
+    
+    // Email validation
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email không được để trống';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        newErrors.email = 'Email không hợp lệ (VD: example@gmail.com)';
+      }
     }
 
-    // Student-specific validation
+    // Phone validation (Vietnam: 10 digits starting with 0)
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Số điện thoại không được để trống';
+    } else {
+      const phoneRegex = /^0\d{9}$/;
+      if (!phoneRegex.test(formData.phone)) {
+        newErrors.phone = 'Số điện thoại phải có 10 chữ số và bắt đầu bằng 0 (VD: 0987654321)';
+      }
+    }
+
+    // ============================================
+    // SECTION 3: THÔNG TIN HỌC VIÊN
+    // ============================================
+    
     if (formData.role === 'student') {
-      if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Ngày sinh không được để trống';
-      if (!formData.enrollmentDate) newErrors.enrollmentDate = 'Ngày nhập học không được để trống';
-      if (!formData.campus) newErrors.campus = 'Cơ sở không được để trống';
-      
-      // Parent phone validation if provided
-      if (formData.parentPhone && !phoneRegex.test(formData.parentPhone)) {
-        newErrors.parentPhone = 'SĐT phụ huynh phải có 10 chữ số và bắt đầu bằng 0';
+      // Date of Birth validation
+      if (!formData.dateOfBirth) {
+        newErrors.dateOfBirth = 'Ngày sinh không được để trống';
+      } else {
+        const dob = new Date(formData.dateOfBirth);
+        const today = new Date();
+        const age = Math.floor((today.getTime() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        
+        if (dob > today) {
+          newErrors.dateOfBirth = 'Ngày sinh không thể là ngày trong tương lai';
+        } else if (age < 5) {
+          newErrors.dateOfBirth = 'Học viên phải từ 5 tuổi trở lên';
+        } else if (age > 100) {
+          newErrors.dateOfBirth = 'Ngày sinh không hợp lệ';
+        }
       }
+      
+      // Address validation (REQUIRED for students)
+      if (!formData.address || !formData.address.trim()) {
+        newErrors.address = 'Địa chỉ không được để trống';
+      } else if (formData.address.trim().length < 5) {
+        newErrors.address = 'Địa chỉ phải có ít nhất 5 ký tự';
+      }
+      
+      // Parent Name validation (REQUIRED for students)
+      if (!formData.parentName || !formData.parentName.trim()) {
+        newErrors.parentName = 'Tên phụ huynh không được để trống';
+      } else if (formData.parentName.trim().length < 2) {
+        newErrors.parentName = 'Tên phụ huynh phải có ít nhất 2 ký tự';
+      } else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(formData.parentName)) {
+        newErrors.parentName = 'Tên phụ huynh chỉ được chứa chữ cái và khoảng trắng';
+      }
+      
+      // Parent Phone validation (REQUIRED for students)
+      if (!formData.parentPhone || !formData.parentPhone.trim()) {
+        newErrors.parentPhone = 'SĐT phụ huynh không được để trống';
+      } else {
+        const phoneRegex = /^0\d{9}$/;
+        if (!phoneRegex.test(formData.parentPhone)) {
+          newErrors.parentPhone = 'SĐT phụ huynh phải có 10 chữ số và bắt đầu bằng 0 (VD: 0987654321)';
+        }
+        
+        // Parent phone must be different from student phone
+        if (formData.parentPhone === formData.phone) {
+          newErrors.parentPhone = 'SĐT phụ huynh không được trùng với SĐT học viên';
+        }
+      }
+      
+      // Enrollment Date validation
+      if (!formData.enrollmentDate) {
+        newErrors.enrollmentDate = 'Ngày nhập học không được để trống';
+      } else {
+        const enrollDate = new Date(formData.enrollmentDate);
+        const today = new Date();
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(today.getFullYear() - 1);
+        const oneYearFromNow = new Date();
+        oneYearFromNow.setFullYear(today.getFullYear() + 1);
+        
+        if (enrollDate > oneYearFromNow) {
+          newErrors.enrollmentDate = 'Ngày nhập học không thể quá 1 năm trong tương lai';
+        } else if (enrollDate < oneYearAgo) {
+          newErrors.enrollmentDate = 'Ngày nhập học không thể quá 1 năm trong quá khứ';
+        }
+      }
+      
+      // NOTE: Campus/Center will be assigned when student enrolls in a class
+      // No need to validate campus here
     }
 
-    // Teacher-specific validation
+    // ============================================
+    // SECTION 4: THÔNG TIN GIÁO VIÊN
+    // ============================================
+    
     if (formData.role === 'teacher') {
-      if (!formData.specialization) newErrors.specialization = 'Chuyên môn không được để trống';
-      if (!formData.startDate) newErrors.startDate = 'Ngày bắt đầu không được để trống';
-      if (!formData.salary) newErrors.salary = 'Lương không được để trống';
-      if (formData.salary && parseFloat(formData.salary) <= 0) {
-        newErrors.salary = 'Lương phải lớn hơn 0';
+      // Specialization validation
+      if (!formData.specialization) {
+        newErrors.specialization = 'Vui lòng chọn chuyên môn';
       }
-      if (!formData.teachingCampus) newErrors.teachingCampus = 'Cơ sở không được để trống';
+      
+      // Bio validation (optional but if provided, must be reasonable)
+      if (formData.bio && formData.bio.trim().length > 0 && formData.bio.trim().length < 10) {
+        newErrors.bio = 'Tiểu sử phải có ít nhất 10 ký tự nếu điền';
+      }
+      
+      // Experience Years validation (optional but if provided, must be valid)
+      if (formData.experienceYears) {
+        const years = parseInt(formData.experienceYears);
+        if (isNaN(years) || years < 0) {
+          newErrors.experienceYears = 'Số năm kinh nghiệm phải là số không âm';
+        } else if (years > 50) {
+          newErrors.experienceYears = 'Số năm kinh nghiệm không hợp lệ';
+        }
+      }
+      
+      // Certifications validation (optional)
+      if (formData.certifications && formData.certifications.trim().length > 0 && formData.certifications.trim().length < 5) {
+        newErrors.certifications = 'Chứng chỉ phải có ít nhất 5 ký tự nếu điền';
+      }
+      
+      // NOTE: Campus/Center will be assigned when teacher is assigned to a class
+      // No need to validate teachingCampus here
     }
 
     setErrors(newErrors);
@@ -138,14 +250,16 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
         address: formData.address,
         parentName: formData.parentName,
         parentPhone: formData.parentPhone,
-        enrollmentDate: formData.enrollmentDate,
         campus: formData.campus,
+        enrollmentDate: formData.enrollmentDate, // Add enrollment date
       };
     } else if (formData.role === 'teacher') {
       userData.teacherData = {
         code: formData.teacherCode,
         specialization: formData.specialization,
-        salary: parseFloat(formData.salary) || 0,
+        bio: formData.bio,
+        experienceYears: formData.experienceYears,
+        certifications: formData.certifications,
         startDate: formData.startDate,
         campus: formData.teachingCampus,
       };
@@ -160,14 +274,16 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
         onSave({ ...user, ...userData });
       } else {
         // Create new user
-        console.log('🔄 [UserForm] Creating user:', userData);
+        console.log('🔄 [UserForm] Creating user:', JSON.stringify(userData, null, 2));
         const response = await usersAPI.create(userData);
-        console.log('✅ [UserForm] User created:', response);
+        console.log('✅ [UserForm] User created - Full Response:', JSON.stringify(response, null, 2));
         onSave(response.user);
       }
     } catch (err: any) {
       console.error('❌ [UserForm] Error:', err);
-      alert('Lỗi: ' + err.message);
+      console.error('❌ [UserForm] Error message:', err.message);
+      console.error('❌ [UserForm] Error stack:', err.stack);
+      alert('Lỗi: ' + (err.message || JSON.stringify(err)));
     } finally {
       setLoading(false);
     }
@@ -193,9 +309,16 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
             {isEditing ? 'Chỉnh sửa người dùng' : 'Tạo tài khoản mới'}
           </h1>
           {!isEditing && (
-            <p className="text-sm text-gray-600 mt-1">
-              Chọn vai trò để hiển thị form tương ứng (Học viên/Giáo viên sẽ có thêm thông tin chi tiết)
-            </p>
+            <>
+              <p className="text-sm text-gray-600 mt-1">
+                Chọn vai trò để hiển thị form tương ứng (Học viên/Giáo viên sẽ có thêm thông tin chi tiết)
+              </p>
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  🔑 <strong>Mật khẩu mặc định:</strong> 123456 (sẽ được tự động gán cho tài khoản mới)
+                </p>
+              </div>
+            </>
           )}
         </div>
 
@@ -207,13 +330,15 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
               {/* Username */}
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Tên đăng nhập <span className="text-red-500">*</span>
+                  Tên đăng nhập<span style={{ color: 'red' }}> *</span>
                 </label>
                 <input
                   type="text"
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.username ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                   required
                   disabled={isEditing}
@@ -221,30 +346,12 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username}</p>}
               </div>
 
-              {/* Password (only for new users) */}
-              {!isEditing && (
-                <div>
-                  <label className="block text-gray-700 mb-2">
-                    Mật khẩu <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                    required
-                    minLength={6}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối thiểu 6 ký tự</p>
-                  {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
-                </div>
-              )}
+              {/* Password field HIDDEN - using default "123456" */}
 
               {/* Role */}
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Vai trò <span className="text-red-500">*</span>
+                  Vai trò<span style={{ color: 'red' }}> *</span>
                 </label>
                 <select
                   value={formData.role}
@@ -270,7 +377,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
               {/* Status */}
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Trạng thái <span className="text-red-500">*</span>
+                  Trạng thái<span style={{ color: 'red' }}> *</span>
                 </label>
                 <select
                   value={formData.status}
@@ -292,13 +399,15 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
               {/* Full Name */}
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Họ và tên <span className="text-red-500">*</span>
+                  Họ và tên<span style={{ color: 'red' }}> *</span>
                 </label>
                 <input
                   type="text"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.fullName ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                   required
                 />
@@ -308,13 +417,15 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
               {/* Email */}
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Email <span className="text-red-500">*</span>
+                  Email<span style={{ color: 'red' }}> *</span>
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.email ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                   required
                 />
@@ -324,15 +435,18 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
               {/* Phone */}
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Số điện thoại <span className="text-red-500">*</span>
+                  Số điện thoại<span style={{ color: 'red' }}> *</span>
                 </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.phone ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                   required
+                  placeholder="VD: 0987654321"
                 />
                 {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
               </div>
@@ -350,13 +464,15 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 {/* Date of Birth */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Ngày sinh <span className="text-red-500">*</span>
+                    Ngày sinh<span style={{ color: 'red' }}> *</span>
                   </label>
                   <input
                     type="date"
                     value={formData.dateOfBirth}
                     onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white ${
+                      errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                     required
                   />
@@ -366,7 +482,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 {/* Gender */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Giới tính <span className="text-red-500">*</span>
+                    Giới tính<span style={{ color: 'red' }}> *</span>
                   </label>
                   <select
                     value={formData.gender}
@@ -382,43 +498,54 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 {/* Address */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Địa chỉ
+                    Địa chỉ<span style={{ color: 'red' }}> *</span>
                   </label>
                   <input
                     type="text"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white ${
+                      errors.address ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                     placeholder="Địa chỉ thường trú"
+                    required
                   />
+                  {errors.address && <p className="text-red-500 text-sm mt-1">{errors.address}</p>}
                 </div>
 
                 {/* Parent Name */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Tên phụ huynh
+                    Tên phụ huynh<span style={{ color: 'red' }}> *</span>
                   </label>
                   <input
                     type="text"
                     value={formData.parentName}
                     onChange={(e) => setFormData({ ...formData, parentName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white ${
+                      errors.parentName ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                    required
                   />
+                  {errors.parentName && <p className="text-red-500 text-sm mt-1">{errors.parentName}</p>}
                 </div>
 
                 {/* Parent Phone */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    SĐT phụ huynh
+                    SĐT phụ huynh<span style={{ color: 'red' }}> *</span>
                   </label>
                   <input
                     type="tel"
                     value={formData.parentPhone}
                     onChange={(e) => setFormData({ ...formData, parentPhone: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white ${
+                      errors.parentPhone ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                    required
                   />
                   {errors.parentPhone && <p className="text-red-500 text-sm mt-1">{errors.parentPhone}</p>}
                 </div>
@@ -426,20 +553,22 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 {/* Enrollment Date */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Ngày nhập học <span className="text-red-500">*</span>
+                    Ngày nhập học<span style={{ color: 'red' }}> *</span>
                   </label>
                   <input
                     type="date"
                     value={formData.enrollmentDate}
                     onChange={(e) => setFormData({ ...formData, enrollmentDate: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 bg-white ${
+                      errors.enrollmentDate ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                     required
                   />
                   {errors.enrollmentDate && <p className="text-red-500 text-sm mt-1">{errors.enrollmentDate}</p>}
                 </div>
 
-                {/* Campus */}
+                {/* NOTE: Campus/Center will be assigned when student enrolls in a class
                 <div>
                   <label className="block text-gray-700 mb-2">
                     Cơ sở <span className="text-red-500">*</span>
@@ -456,7 +585,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                     <option value="Hai Bà Trưng">Hai Bà Trưng</option>
                   </select>
                   {errors.campus && <p className="text-red-500 text-sm mt-1">{errors.campus}</p>}
-                </div>
+                </div> */}
               </div>
             </div>
           )}
@@ -472,7 +601,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 {/* Specialization */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Chuyên môn <span className="text-red-500">*</span>
+                    Chuyên môn<span style={{ color: 'red' }}> *</span>
                   </label>
                   <select
                     value={formData.specialization}
@@ -491,10 +620,57 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                   {errors.specialization && <p className="text-red-500 text-sm mt-1">{errors.specialization}</p>}
                 </div>
 
+                {/* Bio */}
+                <div>
+                  <label className="block text-gray-700 mb-2">
+                    Tiểu sử
+                  </label>
+                  <textarea
+                    value={formData.bio}
+                    onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                    placeholder="Nhập tiểu sử nếu có"
+                  />
+                  {errors.bio && <p className="text-red-500 text-sm mt-1">{errors.bio}</p>}
+                </div>
+
+                {/* Experience Years */}
+                <div>
+                  <label className="block text-gray-700 mb-2">
+                    Số năm kinh nghiệm
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.experienceYears}
+                    onChange={(e) => setFormData({ ...formData, experienceYears: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                    placeholder="Nhập số năm kinh nghiệm nếu có"
+                  />
+                  {errors.experienceYears && <p className="text-red-500 text-sm mt-1">{errors.experienceYears}</p>}
+                </div>
+
+                {/* Certifications */}
+                <div>
+                  <label className="block text-gray-700 mb-2">
+                    Chứng chỉ
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.certifications}
+                    onChange={(e) => setFormData({ ...formData, certifications: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
+                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                    placeholder="Nhập chứng chỉ nếu có"
+                  />
+                  {errors.certifications && <p className="text-red-500 text-sm mt-1">{errors.certifications}</p>}
+                </div>
+
                 {/* Start Date */}
                 <div>
                   <label className="block text-gray-700 mb-2">
-                    Ngày bắt đầu <span className="text-red-500">*</span>
+                    Ngày bắt đầu<span style={{ color: 'red' }}> *</span>
                   </label>
                   <input
                     type="date"
@@ -507,24 +683,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                   {errors.startDate && <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>}
                 </div>
 
-                {/* Salary */}
-                <div>
-                  <label className="block text-gray-700 mb-2">
-                    Lương (VNĐ) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.salary}
-                    onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
-                    style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                    required
-                    placeholder="VD: 15000000"
-                  />
-                  {errors.salary && <p className="text-red-500 text-sm mt-1">{errors.salary}</p>}
-                </div>
-
-                {/* Campus */}
+                {/* NOTE: Campus/Center will be assigned when teacher is assigned to a class
                 <div>
                   <label className="block text-gray-700 mb-2">
                     Cơ sở <span className="text-red-500">*</span>
@@ -541,7 +700,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                     <option value="Hai Bà Trưng">Hai Bà Trưng</option>
                   </select>
                   {errors.teachingCampus && <p className="text-red-500 text-sm mt-1">{errors.teachingCampus}</p>}
-                </div>
+                </div> */}
               </div>
             </div>
           )}

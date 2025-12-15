@@ -1,57 +1,15 @@
 import { Users, BookOpen, GraduationCap, TrendingUp, Download } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { students, classes, teachers, campuses } from '../../data/mockData';
-
-// Tính toán số liệu học viên theo cơ sở từ mockData
-const studentsByCampus = campuses.map(campus => {
-  const campusStudents = students.filter(s => s.campus === campus.id);
-  return {
-    name: campus.name,
-    students: campusStudents.length
-  };
-});
-
-// Tính toán hiệu suất giáo viên từ mockData
-const teacherPerformance = teachers.slice(0, 5).map(teacher => {
-  const teacherClasses = classes.filter(c => c.teacher === teacher.fullName && c.status === 'active');
-  const totalStudents = teacherClasses.reduce((sum, c) => sum + c.totalStudents, 0);
-  // Mock rating dựa trên IELTS score
-  const rating = teacher.ieltsScore ? (teacher.ieltsScore / 9 * 10).toFixed(1) : '8.5';
-  
-  return {
-    name: teacher.fullName,
-    rating: parseFloat(rating),
-    classes: teacherClasses.length,
-    students: totalStudents
-  };
-}).sort((a, b) => b.rating - a.rating);
-
-// Mock data cho xu hướng tăng trưởng (có thể cải thiện bằng cách tính từ enrollDate)
-const enrollmentTrend = [
-  { month: 'T7', students: students.length - 5 },
-  { month: 'T8', students: students.length - 4 },
-  { month: 'T9', students: students.length - 3 },
-  { month: 'T10', students: students.length - 2 },
-  { month: 'T11', students: students.length - 1 },
-  { month: 'T12', students: students.length },
-];
-
-// Mock data phân bố điểm
-const gradeDistribution = [
-  { name: 'Xuất sắc (9-10)', value: 15, color: 'var(--brand-primary)' },
-  { name: 'Giỏi (8-9)', value: 35, color: '#00b894' },
-  { name: 'Khá (7-8)', value: 25, color: '#ffe9ae' },
-  { name: 'Trung bình (6-7)', value: 10, color: '#e74c3c' },
-];
-
-// Mock data phản hồi
-const recentFeedback = [
-  { student: students[0]?.fullName || 'Học viên A', rating: 5, comment: 'Giáo viên nhiệt tình, giảng dạy dễ hiểu', date: '02/12/2024' },
-  { student: students[1]?.fullName || 'Học viên B', rating: 4, comment: 'Cơ sở vật chất tốt, phòng học rộng rãi', date: '01/12/2024' },
-  { student: students[2]?.fullName || 'Học viên C', rating: 5, comment: 'Chương trình học phù hợp, tiến bộ rõ rệt', date: '30/11/2024' },
-];
+import { useState, useEffect } from 'react';
+import { fetchReportStats, ReportStats } from '../../utils/dashboardApi';
 
 export default function DirectorDashboard() {
+  const [reportStats, setReportStats] = useState<ReportStats | null>(null);
+
+  useEffect(() => {
+    fetchReportStats().then(data => setReportStats(data));
+  }, []);
+
   const exportToExcel = () => {
     alert('Xuất báo cáo Excel thành công!');
   };
@@ -80,7 +38,7 @@ export default function DirectorDashboard() {
               <Users className="w-5 h-5" style={{ color: '#00b894' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{students.length}</h2>
+          <h2 className="text-gray-900 mb-1">{reportStats?.totalStudents || 0}</h2>
           <p className="text-sm" style={{ color: '#00b894' }}>+12% so với tháng trước</p>
         </div>
 
@@ -91,7 +49,7 @@ export default function DirectorDashboard() {
               <BookOpen className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{classes.length}</h2>
+          <h2 className="text-gray-900 mb-1">{reportStats?.totalClasses || 0}</h2>
           <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>+5% so với tháng trước</p>
         </div>
 
@@ -102,7 +60,7 @@ export default function DirectorDashboard() {
               <GraduationCap className="w-5 h-5" style={{ color: 'var(--pastel-lavender-dark)' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{teachers.length}</h2>
+          <h2 className="text-gray-900 mb-1">{reportStats?.totalTeachers || 0}</h2>
           <p className="text-sm" style={{ color: 'var(--pastel-lavender-dark)' }}>+3% so với tháng trước</p>
         </div>
 
@@ -113,7 +71,7 @@ export default function DirectorDashboard() {
               <TrendingUp className="w-5 h-5" style={{ color: '#e67e22' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{classes.filter(c => c.status === 'active').length}</h2>
+          <h2 className="text-gray-900 mb-1">{reportStats?.activeClasses || 0}</h2>
           <p className="text-sm" style={{ color: '#e67e22' }}>+7% so với tháng trước</p>
         </div>
       </div>
@@ -123,7 +81,7 @@ export default function DirectorDashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-gray-900 mb-4">Xu hướng tăng trưởng học viên</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={enrollmentTrend}>
+            <LineChart data={reportStats?.enrollmentTrend || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
@@ -138,7 +96,7 @@ export default function DirectorDashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-gray-900 mb-4">Học viên theo cơ sở</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={studentsByCampus}>
+            <BarChart data={reportStats?.studentsByCampus || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
@@ -157,7 +115,7 @@ export default function DirectorDashboard() {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={gradeDistribution}
+                data={reportStats?.gradeDistribution || []}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
@@ -166,7 +124,7 @@ export default function DirectorDashboard() {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {gradeDistribution.map((entry, index) => (
+                {reportStats?.gradeDistribution?.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
@@ -179,7 +137,7 @@ export default function DirectorDashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-gray-900 mb-4">Hiệu suất giảng dạy</h2>
           <div className="space-y-3">
-            {teacherPerformance.map((teacher, index) => (
+            {reportStats?.teacherPerformance?.map((teacher, index) => (
               <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-gray-900">{teacher.name}</p>
@@ -202,7 +160,7 @@ export default function DirectorDashboard() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-gray-900 mb-4">Phản hồi & Đánh giá gần đây</h2>
         <div className="space-y-3">
-          {recentFeedback.map((feedback, index) => (
+          {reportStats?.recentFeedback?.map((feedback, index) => (
             <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-start justify-between mb-2">
                 <div>

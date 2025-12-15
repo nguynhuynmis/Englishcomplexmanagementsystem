@@ -17,7 +17,6 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCampus, setFilterCampus] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
@@ -40,7 +39,7 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
       ]);
       console.log('✅ [TeacherManagement] Data loaded:', { teachersResponse, classesResponse });
       setTeacherList(teachersResponse.teachers || []);
-      setClassList(classesResponse.classes || []);
+      setClassList(classesResponse.classes || []); // ✅ FIX: Unwrap classes from response object
     } catch (err: any) {
       console.error('❌ [TeacherManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
@@ -50,13 +49,24 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
   };
 
   const filteredTeachers = teacherList.filter(teacher => {
-    const matchSearch = teacher.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCampus = filterCampus === 'all' || teacher.campus === filterCampus;
+    const matchSearch = (teacher.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (teacher.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (teacher.code || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = filterStatus === 'all' || teacher.status === filterStatus;
-    return matchSearch && matchCampus && matchStatus;
+    return matchSearch && matchStatus;
   });
+  
+  // Helper function to get teacher's campuses from their classes
+  const getTeacherCampuses = (teacherId: string) => {
+    const teacherClasses = classList.filter(c => c.teacherId === teacherId);
+    const uniqueCampuses = [...new Set(teacherClasses.map(c => c.campus).filter(Boolean))];
+    console.log(`🏫 [getTeacherCampuses] Teacher ${teacherId}:`, {
+      totalClasses: classList.length,
+      teacherClasses: teacherClasses.length,
+      uniqueCampuses
+    });
+    return uniqueCampuses.length > 0 ? uniqueCampuses.join(', ') : 'Chưa có lớp';
+  };
 
   const handleViewDetail = (teacher: Teacher) => {
     setSelectedTeacher(teacher);
@@ -78,21 +88,42 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
     setSelectedTeacher(null);
   };
 
-  const handleSave = (teacher: Teacher) => {
-    if (viewMode === 'edit' && selectedTeacher) {
-      setTeacherList(teacherList.map(t => t.id === teacher.id ? teacher : t));
-    } else {
-      setTeacherList([...teacherList, { ...teacher, id: `GV${Date.now()}` }]);
+  const handleSave = async (teacher: Teacher) => {
+    try {
+      console.log('[TeacherManagement] Saving teacher:', teacher);
+      
+      if (viewMode === 'edit' && selectedTeacher) {
+        // Update existing teacher via API
+        await teachersAPI.update(teacher.id, teacher);
+        setTeacherList(teacherList.map(t => t.id === teacher.id ? teacher : t));
+      } else {
+        // Create new teacher via API
+        const response = await teachersAPI.create(teacher);
+        setTeacherList([...teacherList, response.teacher]);
+      }
+      
+      setViewMode('list');
+      setSelectedTeacher(null);
+    } catch (err: any) {
+      console.error('[TeacherManagement] Save error:', err);
+      alert(`Lỗi: ${err.message || 'Không thể lưu giáo viên'}`);
     }
-    setViewMode('list');
-    setSelectedTeacher(null);
   };
 
-  const handleDelete = (teacher: Teacher) => {
-    if (window.confirm(`Bạn có chắc chắn muốn xóa giáo viên ${teacher.fullName}?`)) {
+  const handleDelete = async (teacher: Teacher) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa giáo viên ${teacher.fullName}?`)) {
+      return;
+    }
+    
+    try {
+      console.log('[TeacherManagement] Deleting teacher:', teacher.id);
+      await teachersAPI.delete(teacher.id);
       setTeacherList(teacherList.filter(t => t.id !== teacher.id));
       setViewMode('list');
       setSelectedTeacher(null);
+    } catch (err: any) {
+      console.error('[TeacherManagement] Delete error:', err);
+      alert(`Lỗi: ${err.message || 'Không thể xóa giáo viên'}`);
     }
   };
 
@@ -127,19 +158,6 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                 style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
               />
-            </div>
-
-            <div>
-              <select
-                value={filterCampus}
-                onChange={(e) => setFilterCampus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              >
-                <option value="all">Tất cả cơ sở</option>
-                <option value="CS001">Cơ sở Long Biên</option>
-                <option value="CS002">Cơ sở Hai Bà Trưng</option>
-              </select>
             </div>
 
             <div>
@@ -193,7 +211,7 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
                   </div>
                   <div className="flex items-center gap-2 text-gray-600 text-sm">
                     <BookOpen className="w-4 h-4" />
-                    <span>{teacher.campus === 'CS001' ? 'Cơ sở Long Biên' : 'Cơ sở Hai Bà Trưng'}</span>
+                    <span>{getTeacherCampuses(teacher.id)}</span>
                   </div>
                 </div>
 
@@ -439,7 +457,12 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
               <div>
                 <h3 className="text-gray-900 mb-3">Chứng chỉ khác</h3>
                 <div className="space-y-2">
-                  {(selectedTeacher.certificates || []).map((cert, index) => (
+                  {(Array.isArray(selectedTeacher.certificates) 
+                    ? selectedTeacher.certificates 
+                    : (selectedTeacher.certificates && typeof selectedTeacher.certificates === 'string' && selectedTeacher.certificates.trim())
+                      ? selectedTeacher.certificates.split(',').map(c => c.trim()).filter(Boolean)
+                      : []
+                  ).map((cert, index) => (
                     <div key={index} className="flex items-center gap-2">
                       <span
                         className="px-4 py-2 rounded-lg flex-1"
@@ -473,7 +496,12 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
             <div>
               <h2 className="text-gray-900 mb-4">Lĩnh vực chuyên môn</h2>
               <div className="flex flex-wrap gap-2">
-                {selectedTeacher.specialization.map((spec, index) => (
+                {(Array.isArray(selectedTeacher.specialization)
+                  ? selectedTeacher.specialization
+                  : (selectedTeacher.specialization && typeof selectedTeacher.specialization === 'string' && selectedTeacher.specialization.trim())
+                    ? selectedTeacher.specialization.split(',').map(s => s.trim()).filter(Boolean)
+                    : []
+                ).map((spec, index) => (
                   <span
                     key={index}
                     className="px-4 py-2 rounded-lg"
@@ -490,14 +518,8 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
               <h2 className="text-gray-900 mb-4">Thông tin công tác</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <p className="text-sm text-gray-500 mb-2">Cơ sở</p>
-                  <p className="text-gray-900">
-                    {selectedTeacher.campus === 'CS001' ? 'Cơ sở Long Biên' : 'Cơ sở Hai Bà Trưng'}
-                  </p>
-                </div>
-                <div>
                   <p className="text-sm text-gray-500 mb-2">Ngày vào làm</p>
-                  <p className="text-gray-900">{new Date(selectedTeacher.joinDate).toLocaleDateString('vi-VN')}</p>
+                  <p className="text-gray-900">{selectedTeacher.joinDate ? new Date(selectedTeacher.joinDate).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 mb-2">Tên đăng nhập</p>
@@ -596,8 +618,26 @@ function TeacherFormView({
   onBack: () => void;
   onSave: (teacher: Teacher) => void;
 }) {
-  const [formData, setFormData] = useState<Teacher>(
-    teacher || {
+  const [formData, setFormData] = useState<Teacher>(() => {
+    if (teacher) {
+      // Convert string fields to arrays if needed
+      return {
+        ...teacher,
+        certificates: Array.isArray(teacher.certificates) 
+          ? teacher.certificates 
+          : (teacher.certificates && typeof teacher.certificates === 'string' && teacher.certificates.trim())
+            ? teacher.certificates.split(',').map(c => c.trim()).filter(Boolean)
+            : [],
+        specialization: Array.isArray(teacher.specialization)
+          ? teacher.specialization
+          : (teacher.specialization && typeof teacher.specialization === 'string' && teacher.specialization.trim())
+            ? teacher.specialization.split(',').map(s => s.trim()).filter(Boolean)
+            : [],
+      };
+    }
+    
+    // Default for new teacher
+    return {
       id: '',
       code: '',
       fullName: '',
@@ -607,18 +647,17 @@ function TeacherFormView({
       dateOfBirth: '',
       gender: 'male',
       address: '',
-      campus: 'CS001',
       bio: '',
       ieltsScore: undefined,
       toeicScore: undefined,
       toeflScore: undefined,
       certificates: [],
       specialization: [],
-      joinDate: new Date().toISOString().split('T')[0],
+      joinDate: '', // Empty for new teacher, will be filled by user
       status: 'active',
       isFirstLogin: true,
-    }
-  );
+    };
+  });
 
   const [newCertificate, setNewCertificate] = useState('');
   const [newSpecialization, setNewSpecialization] = useState('');
@@ -674,13 +713,21 @@ function TeacherFormView({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Format data for server
+    const serverData = {
+      ...formData,
+      // Convert arrays to strings for server
+      specialty: formData.specialization.join(', '), // specialization array → specialty string
+      certifications: formData.certificates.join(', '), // certificates array → certifications string
+    };
+    
     // Auto-generate username if creating new teacher
     if (!teacher) {
       const username = generateUsername(formData.fullName);
       const code = `GV${String(Date.now()).slice(-3)}`;
-      onSave({ ...formData, username, code });
+      onSave({ ...serverData, username, code });
     } else {
-      onSave(formData);
+      onSave(serverData);
     }
   };
 
@@ -853,6 +900,23 @@ function TeacherFormView({
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                   placeholder="Giới thiệu về bản thân, kinh nghiệm giảng dạy..."
                   rows={4}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 mb-2">
+                  Số năm kinh nghiệm <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.experienceYears || ''}
+                  onChange={(e) => setFormData({ ...formData, experienceYears: e.target.value ? parseInt(e.target.value) : undefined })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                  placeholder="VD: 8"
                   required
                 />
               </div>
@@ -1108,22 +1172,7 @@ function TeacherFormView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-gray-700 mb-2">
-                  Cơ sở <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.campus}
-                  onChange={(e) => setFormData({ ...formData, campus: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                >
-                  <option value="CS001">Cơ sở Long Biên</option>
-                  <option value="CS002">Cơ sở Hai Bà Trưng</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">
-                  Ngày vào làm <span className="text-red-500">*</span>
+                  Ngày vào làm {!teacher?.joinDate && <span className="text-red-500">*</span>}
                 </label>
                 <input
                   type="date"
@@ -1131,8 +1180,13 @@ function TeacherFormView({
                   onChange={(e) => setFormData({ ...formData, joinDate: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  required
+                  required={!teacher?.joinDate}
                 />
+                {teacher?.joinDate && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Giá trị hiện tại: {new Date(teacher.joinDate).toLocaleDateString('vi-VN')}
+                  </p>
+                )}
               </div>
 
               <div>

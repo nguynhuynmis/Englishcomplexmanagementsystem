@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Download, Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { students, teachers, classes, campuses } from '../../data/mockData';
+import { fetchReportStats, ReportStats } from '../../utils/dashboardApi';
 
 export default function ReportStatistics() {
   const [filterCampus, setFilterCampus] = useState('all');
@@ -9,32 +9,64 @@ export default function ReportStatistics() {
   const [filterTeacher, setFilterTeacher] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  
+  // Real data from database
+  const [data, setData] = useState<ReportStats>({
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalClasses: 0,
+    activeClasses: 0,
+    students: [],
+    teachers: [],
+    classes: [],
+    campuses: []
+  });
+  const [loading, setLoading] = useState(true);
 
-  // Calculate real statistics from mock data
+  // Load data from API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const reportData = await fetchReportStats();
+        setData(reportData);
+        console.log('📊 [ReportStatistics] Data loaded:', reportData);
+      } catch (error) {
+        console.error('❌ [ReportStatistics] Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Calculate real statistics from database data
   const stats = useMemo(() => {
+    const { students, teachers, classes, campuses } = data;
+    
     const filteredStudents = filterCampus === 'all' 
       ? students 
-      : students.filter(s => s.campus === filterCampus);
+      : students.filter((s: any) => s.campus === filterCampus);
     
     const filteredClasses = filterCampus === 'all'
       ? classes
-      : classes.filter(c => c.campus === (filterCampus === 'CS001' ? 'Cơ sở Long Biên' : 'Cơ sở Hai Bà Trưng'));
+      : classes.filter((c: any) => c.campusId === filterCampus);
 
     const filteredTeachers = filterCampus === 'all'
       ? teachers
-      : teachers.filter(t => t.campus === filterCampus);
+      : teachers.filter((t: any) => t.campus === filterCampus);
 
     // Total statistics
     const totalStudents = filteredStudents.length;
-    const totalClasses = filteredClasses.filter(c => c.status === 'active').length;
+    const totalClasses = filteredClasses.filter((c: any) => c.status === 'active').length;
     const totalTeachers = filteredTeachers.length;
-    const totalEnrolledInClasses = filteredClasses.reduce((sum, c) => sum + c.totalStudents, 0);
+    const totalEnrolledInClasses = filteredClasses.reduce((sum: number, c: any) => sum + c.totalStudents, 0);
 
     // Students by campus
-    const studentsByCampusData = campuses.map(campus => {
-      const campusStudents = students.filter(s => s.campus === campus.id);
-      const campusClasses = classes.filter(c => 
-        c.campus === campus.name && c.status === 'active'
+    const studentsByCampusData = campuses.map((campus: any) => {
+      const campusStudents = students.filter((s: any) => s.campus === campus.id);
+      const campusClasses = classes.filter((c: any) => 
+        c.campusId === campus.id && c.status === 'active'
       );
       return {
         name: campus.name,
@@ -45,18 +77,18 @@ export default function ReportStatistics() {
 
     // Classes by level
     const classesByLevel = ['Foundation', 'Beginner', 'Intermediate', 'Advanced'].map(level => {
-      const levelClasses = filteredClasses.filter(c => c.level === level);
+      const levelClasses = filteredClasses.filter((c: any) => c.level === level);
       return {
         name: level,
         classes: levelClasses.length,
-        students: levelClasses.reduce((sum, c) => sum + c.totalStudents, 0),
+        students: levelClasses.reduce((sum: number, c: any) => sum + c.totalStudents, 0),
       };
     });
 
     // Teacher statistics
-    const teacherStats = filteredTeachers.map(teacher => {
-      const teacherClasses = filteredClasses.filter(c => c.teacher === teacher.fullName);
-      const totalStudentsInClasses = teacherClasses.reduce((sum, c) => sum + c.totalStudents, 0);
+    const teacherStats = filteredTeachers.map((teacher: any) => {
+      const teacherClasses = filteredClasses.filter((c: any) => c.teacher === teacher.fullName);
+      const totalStudentsInClasses = teacherClasses.reduce((sum: number, c: any) => sum + c.totalStudents, 0);
       
       return {
         name: teacher.fullName,
@@ -68,8 +100,8 @@ export default function ReportStatistics() {
 
     // Class performance (capacity utilization)
     const classPerformance = filteredClasses
-      .filter(c => c.status === 'active')
-      .map(cls => ({
+      .filter((c: any) => c.status === 'active')
+      .map((cls: any) => ({
         class: cls.name,
         utilization: Math.round((cls.totalStudents / cls.maxStudents) * 100),
         total: cls.totalStudents,
@@ -90,12 +122,12 @@ export default function ReportStatistics() {
     const statusDistribution = [
       { 
         name: 'Đang học', 
-        value: students.filter(s => s.status === 'active').length, 
+        value: students.filter((s: any) => s.status === 'active').length, 
         color: 'var(--brand-primary)' 
       },
       { 
         name: 'Đã nghỉ', 
-        value: students.filter(s => s.status === 'inactive').length, 
+        value: students.filter((s: any) => s.status === 'inactive').length, 
         color: '#e74c3c' 
       },
     ];
@@ -112,11 +144,26 @@ export default function ReportStatistics() {
       enrollmentTrend,
       statusDistribution,
     };
-  }, [filterCampus]);
+  }, [filterCampus, data]);
 
   const exportToExcel = () => {
     alert('Xuất báo cáo Excel thành công!');
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-gray-900">Báo cáo - Thống kê</h1>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--brand-primary)' }}></div>
+            <p className="text-gray-600">Đang tải dữ liệu báo cáo...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -158,7 +205,7 @@ export default function ReportStatistics() {
               style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
             >
               <option value="all">Tất cả lớp</option>
-              {classes.map(cls => (
+              {data.classes.map((cls: any) => (
                 <option key={cls.id} value={cls.id}>{cls.name}</option>
               ))}
             </select>
@@ -173,7 +220,7 @@ export default function ReportStatistics() {
               style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
             >
               <option value="all">Tất cả giảng viên</option>
-              {teachers.map(teacher => (
+              {data.teachers.map((teacher: any) => (
                 <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>
               ))}
             </select>
