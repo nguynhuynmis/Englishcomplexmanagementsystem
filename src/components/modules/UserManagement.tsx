@@ -304,7 +304,28 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
 
   const handleDeleteUser = (user: SystemUser) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa người dùng ${user.fullName}?`)) {
-      setUsers(users.filter(u => u.id !== user.id));
+      // Call API to delete user from database
+      fetch(`https://${projectId}.supabase.co/functions/v1/make-server-e2861589/users/${user.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete user');
+          }
+          return response.json();
+        })
+        .then(() => {
+          // Update local state after successful deletion
+          setUsers(users.filter(u => u.id !== user.id));
+          console.log('✅ User deleted successfully');
+        })
+        .catch(error => {
+          console.error('Error deleting user:', error);
+          alert('Lỗi khi xóa người dùng. Vui lòng thử lại.');
+        });
     }
   };
 

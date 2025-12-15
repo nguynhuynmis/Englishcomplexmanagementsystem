@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Plus, Download, FileText, Search, Upload, Bell, Users, MapPin, AlertCircle, Calendar, Trash2, Eye, EyeOff, Edit } from 'lucide-react';
 import { User } from '../../App';
 import { documentsAPI } from '../../utils/api';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
+
+const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-e2861589`;
 
 interface Document {
   id: string;
@@ -129,10 +132,39 @@ export default function DocumentManagement({ user }: DocumentManagementProps) {
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const canManage = user.role === 'academic' || user.role === 'director';
   const canUpload = user.role === 'academic' || user.role === 'teacher';
-  const canCreateAnnouncement = user.role === 'academic' || user.role === 'director';
+  const canCreateAnnouncement = user.role === 'academic' || user.role === 'director' || user.role === 'teacher'; // ✅ Teacher can now create announcements
+
+  // Load announcements from database
+  useEffect(() => {
+    const loadAnnouncements = async () => {
+      try {
+        setLoading(true);
+        console.log('📢 [DocumentManagement] Loading announcements from database...');
+        
+        const response = await fetch(`${API_BASE}/notifications`, {
+          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ [DocumentManagement] Loaded announcements:', data.length);
+          setAnnouncements(data);
+        } else {
+          console.error('❌ [DocumentManagement] Failed to load announcements');
+        }
+      } catch (error) {
+        console.error('❌ [DocumentManagement] Error loading announcements:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadAnnouncements();
+  }, []);
 
   const handleDownload = (document: Document) => {
     alert(`Đã tải xuống: ${document.title}`);
@@ -155,15 +187,48 @@ export default function DocumentManagement({ user }: DocumentManagementProps) {
     setShowUploadModal(true);
   };
 
-  const handleToggleAnnVisibility = (annId: string) => {
-    setAnnouncements(announcements.map(a => 
-      a.id === annId ? { ...a, isVisible: !a.isVisible } : a
-    ));
+  const handleToggleAnnVisibility = async (annId: string) => {
+    try {
+      const ann = announcements.find(a => a.id === annId);
+      if (!ann) return;
+      
+      const newVisibility = !ann.isVisible;
+      
+      const response = await fetch(`${API_BASE}/notifications/${annId}/visibility`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ isVisible: newVisibility })
+      });
+      
+      if (response.ok) {
+        setAnnouncements(announcements.map(a => 
+          a.id === annId ? { ...a, isVisible: newVisibility } : a
+        ));
+        console.log('✅ [DocumentManagement] Updated visibility');
+      }
+    } catch (error) {
+      console.error('❌ [DocumentManagement] Error toggling visibility:', error);
+    }
   };
 
-  const handleDeleteAnnouncement = (annId: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) {
-      setAnnouncements(announcements.filter(a => a.id !== annId));
+  const handleDeleteAnnouncement = async (annId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/notifications/${annId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+      
+      if (response.ok) {
+        setAnnouncements(announcements.filter(a => a.id !== annId));
+        console.log('✅ [DocumentManagement] Deleted notification');
+      }
+    } catch (error) {
+      console.error('❌ [DocumentManagement] Error deleting notification:', error);
     }
   };
   
@@ -497,13 +562,40 @@ export default function DocumentManagement({ user }: DocumentManagementProps) {
             setShowAnnouncementModal(false);
             setEditingAnnouncement(null);
           }}
-          onSubmit={(ann) => {
+          onSubmit={async (ann) => {
             if (editingAnnouncement) {
-              // Update existing announcement
+              // Update existing announcement (local only for now)
               setAnnouncements(announcements.map(a => a.id === editingAnnouncement.id ? { ...ann, id: editingAnnouncement.id } : a));
             } else {
-              // Create new announcement
-              setAnnouncements([ann, ...announcements]);
+              // Create new announcement via API
+              try {
+                console.log('📢 [DocumentManagement] Creating notification via API...');
+                const response = await fetch(`${API_BASE}/notifications`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${publicAnonKey}`
+                  },
+                  body: JSON.stringify({
+                    content: ann.content,
+                    targetClass: null, // Can add class selection later
+                    teacherId: user.teacherId || null, // Use teacherId from logged in user
+                    postedBy: user.fullName
+                  })
+                });
+                
+                if (response.ok) {
+                  const newNotification = await response.json();
+                  console.log('✅ [DocumentManagement] Created notification:', newNotification);
+                  setAnnouncements([newNotification, ...announcements]);
+                } else {
+                  console.error('❌ [DocumentManagement] Failed to create notification');
+                  alert('Lỗi khi tạo thông báo');
+                }
+              } catch (error) {
+                console.error('❌ [DocumentManagement] Error creating notification:', error);
+                alert('Lỗi khi tạo thông báo');
+              }
             }
             setShowAnnouncementModal(false);
             setEditingAnnouncement(null);

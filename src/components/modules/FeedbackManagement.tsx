@@ -7,26 +7,30 @@ interface Feedback {
   id: string;
   sender: string;
   senderRole: string;
-  type: 'academic' | 'technical' | 'course';
-  title: 'Đề nghị bổ sung tài liệu IELTS Writing' | 'Lỗi hệ thống nhập điểm' | 'Xin nghỉ học buổi ngày 15/12' | 'Góp ý về tốc độ giảng dạy' | 'Đề xuất tổ chức thêm lớp ôn thi' | 'Câu hỏi về lịch học';
+  type: 'academic' | 'technical' | 'course' | 'question' | 'general'; // ✅ Added backend types
+  title?: string; // ✅ Optional since backend doesn't return it
   content: string;
   status: 'pending' | 'responded';
-  createdDate: string;
-  response?: string;
-  responseDate?: string;
-  respondedBy?: string;
+  date: string; // ✅ Changed from createdDate to match backend
+  reply?: string; // ✅ Changed from response to match backend
+  replied_by?: string; // ✅ Changed from respondedBy
+  replied_at?: string; // ✅ Changed from responseDate
 }
 
 const typeLabels = {
   academic: 'Học vụ',
   technical: 'Kỹ thuật',
   course: 'Khóa học',
+  question: 'Câu hỏi', // ✅ Added
+  general: 'Chung', // ✅ Added
 };
 
 const categoryColors = {
   academic: { bg: 'var(--brand-primary-100)', text: 'var(--brand-primary-700)' },
   technical: { bg: 'var(--pastel-pink-light)', text: '#d63031' },
   course: { bg: 'var(--pastel-green-light)', text: '#00b894' },
+  question: { bg: 'var(--pastel-yellow-light)', text: '#f39c12' }, // ✅ Added
+  general: { bg: '#f0f0f0', text: '#666' }, // ✅ Added
 };
 
 interface FeedbackManagementProps {
@@ -65,6 +69,15 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
   const filteredFeedbacks = feedbacks.filter(feedback => {
     const matchStatus = filterStatus === 'all' || feedback.status === filterStatus;
     const matchType = filterType === 'all' || feedback.type === filterType;
+    
+    console.log('🔍 [Filter Debug]', {
+      userRole: user.role,
+      userFullName: user.fullName,
+      feedbackSender: feedback.sender,
+      match: feedback.sender === user.fullName,
+      matchStatus,
+      matchType
+    });
     
     // Filter by user role
     if (user.role === 'student') {
@@ -108,9 +121,9 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
         ? {
             ...f,
             status: 'responded' as const,
-            response,
-            responseDate: new Date().toISOString().split('T')[0],
-            respondedBy: user.fullName,
+            reply: response,
+            replied_at: new Date().toISOString().split('T')[0],
+            replied_by: user.fullName,
           }
         : f
     ));
@@ -120,9 +133,9 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
       setViewingFeedback({
         ...viewingFeedback,
         status: 'responded',
-        response,
-        responseDate: new Date().toISOString().split('T')[0],
-        respondedBy: user.fullName,
+        reply: response,
+        replied_at: new Date().toISOString().split('T')[0],
+        replied_by: user.fullName,
       });
     }
   };
@@ -174,6 +187,8 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
                 <option value="academic">Học vụ</option>
                 <option value="technical">Kỹ thuật</option>
                 <option value="course">Khóa học</option>
+                <option value="question">Câu hỏi</option>
+                <option value="general">Chung</option>
               </select>
             </div>
           </div>
@@ -193,7 +208,7 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h3 className="text-gray-900">{feedback.title}</h3>
+                        {feedback.title && <h3 className="text-gray-900">{feedback.title}</h3>} {/* ✅ Only show if exists */}
                         <span
                           className="px-3 py-1 rounded-full text-sm"
                           style={{
@@ -221,21 +236,21 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
                         </div>
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4" />
-                          <span>{new Date(feedback.createdDate).toLocaleDateString('vi-VN')}</span>
+                          <span>{new Date(feedback.date).toLocaleDateString('vi-VN')}</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {feedback.response && (
+                  {feedback.reply && (
                     <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--brand-primary-50)' }}>
                       <div className="flex items-start gap-3">
                         <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--brand-primary)' }} />
                         <div className="flex-1">
                           <p className="text-sm mb-1" style={{ color: 'var(--brand-primary-900)' }}>
-                            Phản hồi từ {feedback.respondedBy}:
+                            Phản hồi từ {feedback.replied_by}:
                           </p>
-                          <p className="text-gray-700 line-clamp-2">{feedback.response}</p>
+                          <p className="text-gray-700 line-clamp-2">{feedback.reply}</p>
                         </div>
                       </div>
                     </div>
@@ -325,7 +340,7 @@ function FeedbackDetailView({
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
-              <h1 className="text-gray-900 mb-3">{feedback.title}</h1>
+              {feedback.title && <h1 className="text-gray-900 mb-3">{feedback.title}</h1>} {/* ✅ Only show if exists */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span
                   className="px-3 py-1 rounded-full text-sm"
@@ -360,7 +375,7 @@ function FeedbackDetailView({
             </div>
             <div>
               <p className="text-sm text-gray-500 mb-1">Ngày gửi</p>
-              <p className="text-gray-900">{new Date(feedback.createdDate).toLocaleDateString('vi-VN')}</p>
+              <p className="text-gray-900">{new Date(feedback.date).toLocaleDateString('vi-VN')}</p>
             </div>
           </div>
 
@@ -373,7 +388,7 @@ function FeedbackDetailView({
           </div>
 
           {/* Response */}
-          {feedback.response && (
+          {feedback.reply && (
             <div>
               <p className="text-sm text-gray-500 mb-2">Phản hồi</p>
               <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--brand-primary-50)' }}>
@@ -381,13 +396,13 @@ function FeedbackDetailView({
                   <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--brand-primary)' }} />
                   <div className="flex-1">
                     <p className="text-sm mb-1" style={{ color: 'var(--brand-primary-900)' }}>
-                      {feedback.respondedBy}
+                      {feedback.replied_by}
                     </p>
-                    <p className="text-gray-700 whitespace-pre-wrap">{feedback.response}</p>
+                    <p className="text-gray-700 whitespace-pre-wrap">{feedback.reply}</p>
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">
-                  Ngày phản hồi: {new Date(feedback.responseDate!).toLocaleDateString('vi-VN')}
+                  Ngày phản hồi: {new Date(feedback.replied_at!).toLocaleDateString('vi-VN')}
                 </p>
               </div>
             </div>
@@ -477,7 +492,7 @@ function CreateFeedbackView({
     title: '',
     content: '',
     status: 'pending' as const,
-    createdDate: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split('T')[0],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -499,7 +514,7 @@ function CreateFeedbackView({
 
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-gray-900">G��i phản hồi mới</h1>
+          <h1 className="text-gray-900">Gửi phản hồi mới</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -516,6 +531,8 @@ function CreateFeedbackView({
                 <option value="academic">Học vụ</option>
                 <option value="technical">Kỹ thuật</option>
                 <option value="course">Khóa học</option>
+                <option value="question">Câu hỏi</option>
+                <option value="general">Chung</option>
               </select>
             </div>
 

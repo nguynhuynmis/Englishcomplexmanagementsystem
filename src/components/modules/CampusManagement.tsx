@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Search, MapPin, Phone, User, ArrowLeft } from 'lucide-react';
 import { campuses as mockDataCampuses } from '../../data/mockData';
-import { campusesAPI } from '../../utils/api';
+import { campusesAPI, usersAPI } from '../../utils/api';
 
 interface Campus {
   id: string;
@@ -10,19 +10,15 @@ interface Campus {
   address: string;
   phone: string;
   email: string;
+  id_manager?: string;
   manager?: string;
   status: 'active' | 'inactive';
-  classrooms?: number;
-  capacity?: number;
 }
 
-// Convert mockData campuses to Campus format with additional fields
-const mockCampuses: Campus[] = mockDataCampuses.map(campus => ({
-  ...campus,
-  manager: campus.code === 'CS001' ? 'Cấn Việt Đức' : 'Nguyễn Thị Lan Anh',
-  classrooms: campus.code === 'CS001' ? 8 : 6,
-  capacity: campus.code === 'CS001' ? 120 : 90,
-}));
+interface UserOption {
+  id_user: string;
+  full_name: string;
+}
 
 type ViewMode = 'list' | 'detail' | 'create' | 'edit';
 
@@ -45,7 +41,7 @@ export default function CampusManagement() {
       console.log('🔄 [CampusManagement] Loading data...');
       const response = await campusesAPI.getAll();
       console.log('✅ [CampusManagement] Data loaded:', response);
-      setCampuses(response || []); // FIXED: Backend returns direct array, not {campuses: [...]}
+      setCampuses(response || []);
     } catch (err: any) {
       console.error('❌ [CampusManagement] Error:', err);
       setError(err.message || 'Không thể tải dữ liệu');
@@ -97,10 +93,10 @@ export default function CampusManagement() {
       console.log('[CampusManagement] Saving campus:', campus);
       if (viewMode === 'edit' && selectedCampus) {
         await campusesAPI.update(campus.id, campus);
-        setCampuses(campuses.map(c => c.id === campus.id ? campus : c));
+        await loadData(); // Reload to get updated manager name
       } else {
-        const response = await campusesAPI.create(campus);
-        setCampuses([...campuses, response.campus]);
+        await campusesAPI.create(campus);
+        await loadData(); // Reload to get new campus with manager name
       }
       setViewMode('list');
       setSelectedCampus(null);
@@ -206,18 +202,7 @@ export default function CampusManagement() {
                   </div>
                   <div className="flex items-center gap-2 text-gray-600">
                     <User className="w-4 h-4" />
-                    <span className="text-sm">Quản lý: {campus.manager}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-4 p-3 rounded-lg" style={{ backgroundColor: 'var(--brand-primary-50)' }}>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Phòng học</p>
-                    <p className="text-gray-900">{campus.classrooms} phòng</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Sức chứa</p>
-                    <p className="text-gray-900">{campus.capacity} học viên</p>
+                    <span className="text-sm">Quản lý: {campus.manager || 'Chưa có'}</span>
                   </div>
                 </div>
 
@@ -309,7 +294,7 @@ export default function CampusManagement() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-2">Người quản lý</p>
-                <p className="text-gray-900">{selectedCampus.manager}</p>
+                <p className="text-gray-900">{selectedCampus.manager || 'Chưa có'}</p>
               </div>
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-500 mb-2">Địa chỉ</p>
@@ -320,12 +305,8 @@ export default function CampusManagement() {
                 <p className="text-gray-900">{selectedCampus.phone}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500 mb-2">Số phòng học</p>
-                <p className="text-gray-900">{selectedCampus.classrooms} phòng</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 mb-2">Sức chứa</p>
-                <p className="text-gray-900">{selectedCampus.capacity} học viên</p>
+                <p className="text-sm text-gray-500 mb-2">Email</p>
+                <p className="text-gray-900">{selectedCampus.email || 'Chưa có'}</p>
               </div>
             </div>
           </div>
@@ -364,12 +345,30 @@ function CampusFormView({
       name: '',
       address: '',
       phone: '',
-      manager: '',
+      email: '',
+      id_manager: '',
       status: 'active',
-      classrooms: 0,
-      capacity: 0,
     }
   );
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await usersAPI.getAll();
+      console.log('👥 [CampusForm] Users loaded:', response);
+      setUsers(response?.users || []);
+    } catch (err) {
+      console.error('❌ [CampusForm] Error loading users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -399,21 +398,6 @@ function CampusFormView({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-gray-700 mb-2">
-                Mã cơ sở <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                placeholder="VD: LB, HBT"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">
                 Tên cơ sở <span className="text-red-500">*</span>
               </label>
               <input
@@ -423,6 +407,21 @@ function CampusFormView({
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                 style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                 placeholder="VD: Cơ sở Long Biên"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 mb-2">
+                Số điện thoại <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                placeholder="VD: 0986.922.618"
                 required
               />
             </div>
@@ -444,64 +443,39 @@ function CampusFormView({
 
             <div>
               <label className="block text-gray-700 mb-2">
-                Số điện thoại <span className="text-red-500">*</span>
+                Email
               </label>
               <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                 style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                placeholder="VD: 0986.922.618"
-                required
+                placeholder="VD: longbien@englishcomplex.vn"
               />
             </div>
 
             <div>
               <label className="block text-gray-700 mb-2">
-                Người quản lý <span className="text-red-500">*</span>
+                Người quản lý
               </label>
-              <input
-                type="text"
-                value={formData.manager}
-                onChange={(e) => setFormData({ ...formData, manager: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                placeholder="Nhập tên người quản lý"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">
-                Số phòng học <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                value={formData.classrooms}
-                onChange={(e) => setFormData({ ...formData, classrooms: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                placeholder="VD: 8"
-                required
-                min="1"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-700 mb-2">
-                Sức chứa (học viên) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                value={formData.capacity}
-                onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                placeholder="VD: 120"
-                required
-                min="1"
-              />
+              {loadingUsers ? (
+                <div className="text-gray-500 text-sm">Đang tải danh sách...</div>
+              ) : (
+                <select
+                  value={formData.id_manager || ''}
+                  onChange={(e) => setFormData({ ...formData, id_manager: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
+                >
+                  <option value="">-- Chưa chọn --</option>
+                  {users.map(user => (
+                    <option key={user.id_user} value={user.id_user}>
+                      {user.full_name} ({user.id_user})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>

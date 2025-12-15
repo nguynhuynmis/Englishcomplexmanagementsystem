@@ -1,36 +1,21 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Download, Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { fetchReportStats, ReportStats } from '../../utils/dashboardApi';
+import { Download, Users, BookOpen, GraduationCap, TrendingUp, CheckCircle, MessageSquare, Award } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { fetchComprehensiveStats } from '../../utils/dashboardApi';
 
 export default function ReportStatistics() {
   const [filterCampus, setFilterCampus] = useState('all');
-  const [filterClass, setFilterClass] = useState('all');
-  const [filterTeacher, setFilterTeacher] = useState('all');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  
-  // Real data from database
-  const [data, setData] = useState<ReportStats>({
-    totalStudents: 0,
-    totalTeachers: 0,
-    totalClasses: 0,
-    activeClasses: 0,
-    students: [],
-    teachers: [],
-    classes: [],
-    campuses: []
-  });
   const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
 
-  // Load data from API
+  // Load comprehensive data from new API endpoint
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const reportData = await fetchReportStats();
-        setData(reportData);
-        console.log('📊 [ReportStatistics] Data loaded:', reportData);
+        const stats = await fetchComprehensiveStats();
+        setData(stats);
+        console.log('📊 [ReportStatistics] Comprehensive data loaded:', stats);
       } catch (error) {
         console.error('❌ [ReportStatistics] Error loading data:', error);
       } finally {
@@ -42,7 +27,22 @@ export default function ReportStatistics() {
 
   // Calculate real statistics from database data
   const stats = useMemo(() => {
-    const { students, teachers, classes, campuses } = data;
+    if (!data || !data.students || !data.teachers || !data.classes || !data.centers) {
+      return {
+        totalStudents: 0,
+        totalClasses: 0,
+        totalTeachers: 0,
+        totalEnrolledInClasses: 0,
+        studentsByCampusData: [],
+        classesByLevel: [],
+        teacherStats: [],
+        classPerformance: [],
+        enrollmentTrend: [],
+        statusDistribution: []
+      };
+    }
+
+    const { students, teachers, classes, centers } = data;
     
     const filteredStudents = filterCampus === 'all' 
       ? students 
@@ -63,7 +63,7 @@ export default function ReportStatistics() {
     const totalEnrolledInClasses = filteredClasses.reduce((sum: number, c: any) => sum + c.totalStudents, 0);
 
     // Students by campus
-    const studentsByCampusData = campuses.map((campus: any) => {
+    const studentsByCampusData = centers.map((campus: any) => {
       const campusStudents = students.filter((s: any) => s.campus === campus.id);
       const campusClasses = classes.filter((c: any) => 
         c.campusId === campus.id && c.status === 'active'
@@ -94,7 +94,7 @@ export default function ReportStatistics() {
         name: teacher.fullName,
         classes: teacherClasses.length,
         students: totalStudentsInClasses,
-        ielts: teacher.ieltsScore || 0,
+        ielts: teacher.ieltsScore || 0, // ✅ Add IELTS score with fallback
       };
     });
 
@@ -195,56 +195,6 @@ export default function ReportStatistics() {
               <option value="CS002">Cơ sở Hai Bà Trưng</option>
             </select>
           </div>
-
-          <div>
-            <label className="block text-gray-700 mb-2">Lọc theo lớp</label>
-            <select
-              value={filterClass}
-              onChange={(e) => setFilterClass(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-            >
-              <option value="all">Tất cả lớp</option>
-              {data.classes.map((cls: any) => (
-                <option key={cls.id} value={cls.id}>{cls.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 mb-2">Lọc theo giảng viên</label>
-            <select
-              value={filterTeacher}
-              onChange={(e) => setFilterTeacher(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-              style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-            >
-              <option value="all">Tất cả giảng viên</option>
-              {data.teachers.map((teacher: any) => (
-                <option key={teacher.id} value={teacher.id}>{teacher.fullName}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-gray-700 mb-2">Lọc theo thời gian</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              />
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-              />
-            </div>
-          </div>
         </div>
       </div>
 
@@ -257,9 +207,9 @@ export default function ReportStatistics() {
               <Users className="w-5 h-5" style={{ color: '#00b894' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{stats.totalStudents}</h2>
+          <h2 className="text-gray-900 mb-1">{data?.summary?.totalStudents || 0}</h2>
           <p className="text-sm" style={{ color: '#00b894' }}>
-            Đang học: {stats.statusDistribution[0].value}
+            Đang học: {data?.studentsByStatus?.[0]?.value || 0}
           </p>
         </div>
 
@@ -270,7 +220,7 @@ export default function ReportStatistics() {
               <BookOpen className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{stats.totalClasses}</h2>
+          <h2 className="text-gray-900 mb-1">{data?.summary?.activeClasses || 0}</h2>
           <p className="text-sm text-gray-600">
             Đang hoạt động
           </p>
@@ -283,7 +233,7 @@ export default function ReportStatistics() {
               <GraduationCap className="w-5 h-5" style={{ color: 'var(--pastel-lavender-dark)' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{stats.totalTeachers}</h2>
+          <h2 className="text-gray-900 mb-1">{data?.summary?.totalTeachers || 0}</h2>
           <p className="text-sm text-gray-600">
             Đang giảng dạy
           </p>
@@ -291,18 +241,14 @@ export default function ReportStatistics() {
 
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-gray-600">Sĩ số trung bình</p>
+            <p className="text-gray-600">Tỷ lệ điểm danh</p>
             <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-yellow-light)' }}>
-              <TrendingUp className="w-5 h-5" style={{ color: '#ffd97a' }} />
+              <CheckCircle className="w-5 h-5" style={{ color: '#ffd97a' }} />
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">
-            {stats.totalClasses > 0 
-              ? Math.round(stats.totalEnrolledInClasses / stats.totalClasses) 
-              : 0}
-          </h2>
+          <h2 className="text-gray-900 mb-1">{data?.summary?.attendanceRate || 0}%</h2>
           <p className="text-sm text-gray-600">
-            Học viên/lớp
+            Trung bình có mặt
           </p>
         </div>
       </div>
@@ -344,46 +290,138 @@ export default function ReportStatistics() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Classes by Level */}
+        {/* Classes by Course */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Lớp học theo trình độ</h2>
+          <h2 className="text-gray-900 mb-4">Lớp học theo khóa IELTS</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={stats.classesByLevel}>
+            <BarChart data={data?.classesByCourse || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
               <Legend />
               <Bar dataKey="classes" fill="var(--brand-primary)" name="Số lớp" />
-              <Bar dataKey="students" fill="#ffe9ae" name="Số học viên" />
+              <Bar dataKey="students" fill="#00b894" name="Số học viên" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Status Distribution */}
+        {/* Grade by Skills - Radar Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Phân bố trạng thái</h2>
+          <h2 className="text-gray-900 mb-4">Điểm trung bình theo kỹ năng</h2>
           <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={stats.statusDistribution}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={(entry) => `${entry.name}: ${entry.value}`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {stats.statusDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
+            <RadarChart data={data?.gradesBySkill || []}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="skill" />
+              <PolarRadiusAxis domain={[0, 9]} />
+              <Radar name="Điểm TB" dataKey="average" stroke="var(--brand-primary)" fill="var(--brand-primary)" fillOpacity={0.6} />
               <Tooltip />
-            </PieChart>
+            </RadarChart>
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Charts Row 3 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Enrollment Trend from Real Data */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-gray-900 mb-4">Xu hướng nhập học (6 tháng gần đây)</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data?.enrollmentTrend || []}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="students" stroke="var(--brand-primary)" strokeWidth={2} name="Học viên mới" />
+              <Line type="monotone" dataKey="classes" stroke="#00b894" strokeWidth={2} name="Lớp mới" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Feedback Statistics */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-gray-900 mb-4">Thống kê phản hồi</h2>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <MessageSquare className="w-8 h-8" style={{ color: 'var(--brand-primary)' }} />
+                <div>
+                  <p className="text-gray-600 text-sm">Tổng phản hồi</p>
+                  <h3 className="text-gray-900">{data?.feedbackStats?.total || 0}</h3>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-yellow-50 rounded-lg">
+                <p className="text-sm text-gray-600">Chờ xử lý</p>
+                <h3 className="text-gray-900">{data?.feedbackStats?.pending || 0}</h3>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg">
+                <p className="text-sm text-gray-600">Đã phản hồi</p>
+                <h3 className="text-gray-900">{data?.feedbackStats?.responded || 0}</h3>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={data?.feedbackStats?.byType || []} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="type" type="category" width={80} />
+                <Tooltip />
+                <Bar dataKey="count" fill="var(--brand-primary)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Students Table */}
+      {data?.topStudents && data.topStudents.length > 0 && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
+              <h2 className="text-gray-900">Top 10 học viên xuất sắc</h2>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead style={{ backgroundColor: 'var(--brand-primary-50)' }}>
+                <tr>
+                  <th className="px-6 py-3 text-left text-gray-700">Xếp hạng</th>
+                  <th className="px-6 py-3 text-left text-gray-700">Học viên</th>
+                  <th className="px-6 py-3 text-left text-gray-700">Điểm TB</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {data.topStudents.map((student: any, index: number) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {index < 3 && (
+                          <Award 
+                            className="w-5 h-5" 
+                            style={{ 
+                              color: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : '#CD7F32' 
+                            }} 
+                          />
+                        )}
+                        <span className="text-gray-900">#{index + 1}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-900">{student.name}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--pastel-green-light)', color: '#00b894' }}>
+                        {student.average.toFixed(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Teacher Stats Table */}
       <div className="bg-white rounded-lg shadow">
@@ -401,18 +439,26 @@ export default function ReportStatistics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {stats.teacherStats.map((teacher, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-gray-900">{teacher.name}</td>
-                  <td className="px-6 py-4 text-gray-700">{teacher.classes}</td>
-                  <td className="px-6 py-4 text-gray-700">{teacher.students}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
-                      {teacher.ielts.toFixed(1)}
-                    </span>
+              {stats.teacherStats && stats.teacherStats.length > 0 ? (
+                stats.teacherStats.map((teacher, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-gray-900">{teacher.name}</td>
+                    <td className="px-6 py-4 text-gray-700">{teacher.classes}</td>
+                    <td className="px-6 py-4 text-gray-700">{teacher.students}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-3 py-1 rounded-full text-sm" style={{ backgroundColor: 'var(--brand-primary-100)', color: 'var(--brand-primary-700)' }}>
+                        {teacher.ielts.toFixed(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    Chưa có dữ liệu giảng viên
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -433,28 +479,36 @@ export default function ReportStatistics() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {stats.classPerformance.map((cls, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-gray-900">{cls.class}</td>
-                  <td className="px-6 py-4 text-gray-700">
-                    {cls.total}/{cls.max}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full"
-                          style={{
-                            width: `${cls.utilization}%`,
-                            backgroundColor: cls.utilization >= 80 ? '#00b894' : cls.utilization >= 60 ? '#ffe9ae' : '#e74c3c',
-                          }}
-                        />
+              {stats.classPerformance && stats.classPerformance.length > 0 ? (
+                stats.classPerformance.map((cls, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-gray-900">{cls.class}</td>
+                    <td className="px-6 py-4 text-gray-700">
+                      {cls.total}/{cls.max}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="h-2 rounded-full"
+                            style={{
+                              width: `${cls.utilization}%`,
+                              backgroundColor: cls.utilization >= 80 ? '#00b894' : cls.utilization >= 60 ? '#ffe9ae' : '#e74c3c',
+                            }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-700 w-12">{cls.utilization}%</span>
                       </div>
-                      <span className="text-sm text-gray-700 w-12">{cls.utilization}%</span>
-                    </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                    Chưa có dữ liệu lớp học
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

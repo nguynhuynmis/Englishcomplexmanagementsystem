@@ -32,6 +32,8 @@ export const ID_PREFIXES = {
   grades: 'BD',        // Bảng Điểm
   payments: 'TT',      // Thanh Toán
   materials: 'TL',     // Tài Liệu
+  notification: 'ND',  // Thông báo (Notification)
+  feedbacks: 'PH',     // Phản Hồi (Feedback)
 } as const;
 
 type TableName = keyof typeof ID_PREFIXES;

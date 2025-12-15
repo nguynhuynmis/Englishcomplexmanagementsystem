@@ -204,3 +204,25 @@ export const fetchTeacherClasses = async (teacherName: string) => {
     return [];
   }
 };
+
+// New comprehensive statistics endpoint
+export const fetchComprehensiveStats = async () => {
+  try {
+    console.log('📊 [ComprehensiveStats] Fetching from /reports/statistics...');
+    
+    const response = await fetch(`${API_BASE}/reports/statistics`, {
+      headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('✅ [ComprehensiveStats] Data loaded:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ [ComprehensiveStats] Error:', error);
+    return null;
+  }
+};

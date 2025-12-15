@@ -109,7 +109,7 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-gray-900">Xin chào, {user.fullName}!</h1>
+        <h1 className="text-gray-900">Xin chào, {user.fullname || user.username}!</h1>
         <p className="text-gray-600">
           {studentClass ? `Lớp ${studentClass.name} - ${studentClass.level}` : 'Chưa xếp lớp'}
         </p>

@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Plus, Eye, Edit, Download, Upload } from 'lucide-react';
 import { User } from '../../App';
 import { assignmentsAPI } from '../../utils/api';
+import { projectId, publicAnonKey } from '../../utils/supabase/info';
+
+const API_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-e2861589`;
 
 interface Assignment {
   id: string;
@@ -53,9 +56,16 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
   const [viewingAssignment, setViewingAssignment] = useState<Assignment | null>(null);
   const [viewingSubmissions, setViewingSubmissions] = useState<Assignment | null>(null);
   const [submittingAssignment, setSubmittingAssignment] = useState<Assignment | null>(null);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
 
   const isTeacher = user.role === 'teacher';
   const isStudent = user.role === 'student';
+
+  // Debug log
+  console.log('👤 [AssignmentManagement] User:', user);
+  console.log('🔑 [AssignmentManagement] user.role:', user.role);
+  console.log('👨‍🏫 [AssignmentManagement] isTeacher:', isTeacher);
+  console.log('👨‍🎓 [AssignmentManagement] isStudent:', isStudent);
 
   useEffect(() => {
     loadData();
@@ -77,6 +87,75 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
     }
   };
 
+  const loadSubmissions = async (assignmentId: string) => {
+    try {
+      console.log('🔄 [AssignmentManagement] Loading submissions for assignment:', assignmentId);
+      const response = await fetch(`${API_BASE}/assignments/${assignmentId}/submissions`, {
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ [AssignmentManagement] Submissions loaded:', data);
+        setSubmissions(data);
+      }
+    } catch (error) {
+      console.error('❌ [AssignmentManagement] Error loading submissions:', error);
+    }
+  };
+  
+  const handleCreateAssignment = async (assignmentData: any) => {
+    try {
+      console.log('📝 [AssignmentManagement] Creating assignment:', assignmentData);
+      
+      // Call API to create assignment
+      const response = await fetch(`${API_BASE}/assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({
+          title: assignmentData.title,
+          description: assignmentData.description,
+          classId: assignmentData.classId,
+          dueDate: assignmentData.dueDate,
+          fileUrl: assignmentData.fileUrl || null,
+          createdBy: user.id // User ID from logged in user
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ [AssignmentManagement] Assignment created');
+        // Reload assignments
+        await loadData();
+        setShowCreateModal(false);
+      } else {
+        console.error('❌ [AssignmentManagement] Failed to create assignment');
+      }
+    } catch (error) {
+      console.error('❌ [AssignmentManagement] Error creating assignment:', error);
+    }
+  };
+
+  const handleDeleteAssignment = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa bài tập này?')) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/assignments/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+      });
+      
+      if (response.ok) {
+        console.log('✅ [AssignmentManagement] Assignment deleted');
+        await loadData();
+      }
+    } catch (error) {
+      console.error('❌ [AssignmentManagement] Error deleting assignment:', error);
+    }
+  };
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -168,10 +247,7 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
       {showCreateModal && (
         <CreateAssignmentModal
           onClose={() => setShowCreateModal(false)}
-          onCreate={(assignment) => {
-            setAssignments([...assignments, { ...assignment, id: Date.now().toString() }]);
-            setShowCreateModal(false);
-          }}
+          onCreate={handleCreateAssignment}
           userName={user.fullName}
         />
       )}
@@ -188,8 +264,10 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
       {viewingSubmissions && (
         <SubmissionsModal
           assignment={viewingSubmissions}
-          submissions={mockSubmissions.filter(s => s.assignmentId === viewingSubmissions.id)}
+          submissions={submissions.filter(s => s.assignmentId === viewingSubmissions.id)}
           onClose={() => setViewingSubmissions(null)}
+          onOpen={() => loadSubmissions(viewingSubmissions.id)}
+          onGraded={loadSubmissions}
         />
       )}
 
@@ -197,7 +275,9 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
       {submittingAssignment && (
         <SubmitAssignmentModal
           assignment={submittingAssignment}
+          studentId={user.id}
           onClose={() => setSubmittingAssignment(null)}
+          onSubmitted={loadData}
         />
       )}
     </div>
@@ -206,22 +286,49 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
 
 function CreateAssignmentModal({ onClose, onCreate, userName }: {
   onClose: () => void;
-  onCreate: (assignment: Assignment) => void;
+  onCreate: (assignment: any) => void;
   userName: string;
 }) {
-  const [formData, setFormData] = useState<Assignment>({
-    id: '',
+  const [classes, setClasses] = useState<any[]>([]);
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
+    classId: '',
     className: '',
-    teacher: userName,
     dueDate: '',
-    status: 'open',
+    fileUrl: ''
   });
+
+  useEffect(() => {
+    // Load classes from database
+    const loadClasses = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/classes`, {
+          headers: { 'Authorization': `Bearer ${publicAnonKey}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setClasses(data);
+        }
+      } catch (error) {
+        console.error('Error loading classes:', error);
+      }
+    };
+    loadClasses();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onCreate(formData);
+  };
+
+  const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedClass = classes.find(c => c.id === e.target.value);
+    setFormData({
+      ...formData,
+      classId: e.target.value,
+      className: selectedClass?.name || ''
+    });
   };
 
   return (
@@ -258,15 +365,17 @@ function CreateAssignmentModal({ onClose, onCreate, userName }: {
             <div>
               <label className="block text-gray-700 mb-2">Lớp học</label>
               <select
-                value={formData.className}
-                onChange={(e) => setFormData({ ...formData, className: e.target.value })}
+                value={formData.classId}
+                onChange={handleClassChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
                 <option value="">Chọn lớp học...</option>
-                <option value="IELTS Beginner A1">IELTS Beginner A1</option>
-                <option value="IELTS Intermediate B1">IELTS Intermediate B1</option>
-                <option value="IELTS Advanced C1">IELTS Advanced C1</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -364,12 +473,18 @@ function ViewAssignmentModal({ assignment, onClose }: {
   );
 }
 
-function SubmissionsModal({ assignment, submissions, onClose }: {
+function SubmissionsModal({ assignment, submissions, onClose, onOpen, onGraded }: {
   assignment: Assignment;
   submissions: Submission[];
   onClose: () => void;
+  onOpen: () => void;
+  onGraded: (assignmentId: string) => void;
 }) {
   const [gradingSubmission, setGradingSubmission] = useState<Submission | null>(null);
+
+  useEffect(() => {
+    onOpen();
+  }, [onOpen]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -432,7 +547,10 @@ function SubmissionsModal({ assignment, submissions, onClose }: {
         <GradingModal
           submission={gradingSubmission}
           onClose={() => setGradingSubmission(null)}
-          onSave={() => setGradingSubmission(null)}
+          onSave={() => {
+            setGradingSubmission(null);
+            onGraded(assignment.id);
+          }}
         />
       )}
     </div>
@@ -446,10 +564,38 @@ function GradingModal({ submission, onClose, onSave }: {
 }) {
   const [grade, setGrade] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave();
+    
+    try {
+      setSaving(true);
+      console.log('📝 [GradingModal] Grading submission:', submission.id);
+      
+      const response = await fetch(`${API_BASE}/submissions/${submission.id}/grade`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({
+          grade: parseFloat(grade),
+          feedback: feedback
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ [GradingModal] Submission graded');
+        onSave();
+      } else {
+        console.error('❌ [GradingModal] Failed to grade submission');
+      }
+    } catch (error) {
+      console.error('❌ [GradingModal] Error grading submission:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -488,13 +634,15 @@ function GradingModal({ submission, onClose, onSave }: {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              disabled={saving}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
             >
-              Lưu điểm
+              {saving ? 'Đang lưu...' : 'Lưu điểm'}
             </button>
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
             >
               Hủy
@@ -506,17 +654,48 @@ function GradingModal({ submission, onClose, onSave }: {
   );
 }
 
-function SubmitAssignmentModal({ assignment, onClose }: {
+function SubmitAssignmentModal({ assignment, studentId, onClose, onSubmitted }: {
   assignment: Assignment;
+  studentId: string;
   onClose: () => void;
+  onSubmitted: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [content, setContent] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Xử lý nộp bài tập ở đây
-    onClose();
+    
+    try {
+      setSubmitting(true);
+      console.log('📝 [SubmitAssignmentModal] Submitting assignment:', assignment.id);
+      
+      const response = await fetch(`${API_BASE}/submissions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({
+          assignmentId: assignment.id,
+          studentId: studentId,
+          fileUrl: null // TODO: Implement file upload later
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ [SubmitAssignmentModal] Assignment submitted');
+        onClose();
+        onSubmitted();
+      } else {
+        console.error('❌ [SubmitAssignmentModal] Failed to submit assignment');
+      }
+    } catch (error) {
+      console.error('❌ [SubmitAssignmentModal] Error submitting assignment:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -554,13 +733,15 @@ function SubmitAssignmentModal({ assignment, onClose }: {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
             >
-              Nộp bài
+              {submitting ? 'Đang nộp...' : 'Nộp bài'}
             </button>
             <button
               type="button"
               onClick={onClose}
+              disabled={submitting}
               className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
             >
               Hủy

@@ -244,10 +244,10 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
                 className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg transition-colors"
               >
                 <div 
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
-                  {user.fullName.charAt(0)}
+                  {user.fullname?.charAt(0) || user.username?.charAt(0) || 'U'}
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-600" />
               </button>
@@ -262,7 +262,7 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
                   <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 py-3 z-20">
                     {/* User Info Header */}
                     <div className="px-4 pb-3 border-b border-gray-200">
-                      <p className="text-gray-900">{user.fullName}</p>
+                      <p className="text-gray-900">{user.fullname}</p>
                       <p className="text-gray-500 text-sm">{user.code || user.username}</p>
                     </div>
 
@@ -343,7 +343,7 @@ export default function DashboardLayout({ user, onLogout }: DashboardLayoutProps
       <ChangePasswordModal
         isOpen={changePasswordModalOpen}
         onClose={() => setChangePasswordModalOpen(false)}
-        userName={user.fullName}
+        userName={user.fullname}
         userId={user.id}
       />
     </div>

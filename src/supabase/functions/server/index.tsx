@@ -191,7 +191,7 @@ app.post("/make-server-e2861589/auth/change-password", async (c) => {
     
     // Find user's account
     const { data: user } = await supabase
-      .from('users')
+      .from('user')
       .select('id_account')
       .eq('id_user', userId)
       .single();
@@ -725,7 +725,7 @@ app.delete("/make-server-e2861589/students/:id", async (c) => {
     const { error: deleteEnrollmentError } = await supabase
       .from('class_students')
       .delete()
-      .eq('student', id); // FK: student -> students.id_student
+      .eq('id_students', id); // FK: id_students -> students.id_student
     
     if (deleteEnrollmentError) {
       console.error('❌ [Server] Delete class_students error:', deleteEnrollmentError);
@@ -845,9 +845,6 @@ app.get("/make-server-e2861589/teachers", async (c) => {
         experienceYears: t.experience_years || 0, // From teachers.experience_years
         certificates: t.certifications || '', // From teachers.certifications - NO CONVERSION
         joinDate: t.start_date || '', // From teachers.start_date
-        ieltsScore: t.ielts_score || null, // From teachers.ielts_score
-        toeicScore: t.toeic_score || null, // From teachers.toeic_score
-        toeflScore: t.toefl_score || null, // From teachers.toefl_score
         status: account?.status === 1 ? 'active' : 'inactive', // Convert 1/0 to string
         avatar: user?.avatar_url || null
       };
@@ -1022,15 +1019,6 @@ app.put("/make-server-e2861589/teachers/:id", async (c) => {
     };
     
     // Add optional fields if provided
-    if (teacherData.ieltsScore !== undefined && teacherData.ieltsScore !== null) {
-      teacherUpdate.ielts_score = teacherData.ieltsScore;
-    }
-    if (teacherData.toeicScore !== undefined && teacherData.toeicScore !== null) {
-      teacherUpdate.toeic_score = teacherData.toeicScore;
-    }
-    if (teacherData.toeflScore !== undefined && teacherData.toeflScore !== null) {
-      teacherUpdate.toefl_score = teacherData.toeflScore;
-    }
     if (teacherData.joinDate) {
       teacherUpdate.start_date = teacherData.joinDate;
     }
@@ -1357,7 +1345,7 @@ app.put("/make-server-e2861589/classes/:id", async (c) => {
     const { data: level } = await supabase
       .from('class_levels')
       .select('id_level')
-      .eq('name_level', classData.level)
+      .eq('name', classData.level)
       .single();
     
     const { data: teacher } = await supabase
@@ -1585,7 +1573,7 @@ app.get("/make-server-e2861589/enrollments", async (c) => {
         id_class,
         students!class_students_id_students_fkey (
           id_student,
-          fullname
+          id_user
         ),
         class!class_students_id_class_fkey (
           id_class,
@@ -1599,12 +1587,24 @@ app.get("/make-server-e2861589/enrollments", async (c) => {
       throw error;
     }
     
+    // Get all unique user IDs
+    const userIds = [...new Set(data.map((e: any) => e.students?.id_user).filter(Boolean))];
+    
+    // Get user names
+    const { data: users } = await supabase
+      .from('user')
+      .select('id_user, full_name')
+      .in('id_user', userIds);
+    
+    // Create map for quick lookup
+    const userMap = new Map(users?.map(u => [u.id_user, u.full_name]) || []);
+    
     // Transform to flat structure
     const enrollments = data.map((enrollment: any) => ({
       id: enrollment.id,
       joined_date: enrollment.joined_date,
       student_id: enrollment.students?.id_student || enrollment.id_students,
-      student_name: enrollment.students?.fullname || 'N/A',
+      student_name: userMap.get(enrollment.students?.id_user) || 'N/A',
       class_id: enrollment.class?.id_class || enrollment.id_class,
       class_name: enrollment.class?.name_class || 'N/A'
     }));
@@ -1800,18 +1800,23 @@ app.post("/make-server-e2861589/grades/generate-samples", async (c) => {
     const samplesToInsert = enrollments
       .filter(e => !existingKeys.has(`${e.id_students}_${e.id_class}`))
       .map(enrollment => {
-        const midterm = Math.floor(Math.random() * 7 + 5 * 2) / 2;
-        const final = Math.floor(Math.random() * 7 + 5 * 2) / 2;
-        const attendance = Math.floor(Math.random() * 5 + 16);
-        const average = Number((midterm * 0.4 + final * 0.6).toFixed(1));
+        // Generate random scores for 4 skills (4.0 - 9.0)
+        const listening = (Math.floor(Math.random() * 10 + 8) / 2).toFixed(1);
+        const reading = (Math.floor(Math.random() * 10 + 8) / 2).toFixed(1);
+        const writing = (Math.floor(Math.random() * 10 + 8) / 2).toFixed(1);
+        const speaking = (Math.floor(Math.random() * 10 + 8) / 2).toFixed(1);
+        const overall = ((parseFloat(listening) + parseFloat(reading) + parseFloat(writing) + parseFloat(speaking)) / 4).toFixed(1);
         
         return {
           id_student: enrollment.id_students,
           id_class: enrollment.id_class,
-          midterm_score: midterm,
-          final_score: final,
-          attendance_score: attendance,
-          average_score: average
+          exam_type: 'midterm',
+          exam_date: new Date().toISOString().split('T')[0], // Today's date
+          score_listening: parseFloat(listening),
+          score_reading: parseFloat(reading),
+          score_writing: parseFloat(writing),
+          score_speaking: parseFloat(speaking),
+          overall_score: parseFloat(overall)
         };
       });
     
@@ -1875,29 +1880,31 @@ app.get("/make-server-e2861589/grades", async (c) => {
       studentName: s.students?.user?.full_name || '',
       classId: s.id_class,
       className: s.class?.name_class || '',
-      // Attendance object structure
+      examType: s.exam_type || 'midterm',
+      examDate: s.exam_date || new Date().toISOString().split('T')[0],
+      // Attendance object structure (placeholder - not in scores table)
       attendance: {
         totalSessions: 0, // TODO: Get from class schedule
-        attendedSessions: s.attendance_score || 0,
+        attendedSessions: 0, // TODO: Get from attendance table
         absentSessions: 0 // TODO: Calculate from class schedule
       },
-      // Midterm IELTS scores (simplified - using single score for all skills)
+      // Midterm IELTS scores - map from actual score columns
       midterm: {
-        reading: s.midterm_score || 0,
-        listening: s.midterm_score || 0,
-        writing: s.midterm_score || 0,
-        speaking: s.midterm_score || 0,
-        overall: s.midterm_score || 0
+        reading: s.exam_type === 'midterm' ? (s.score_reading || 0) : 0,
+        listening: s.exam_type === 'midterm' ? (s.score_listening || 0) : 0,
+        writing: s.exam_type === 'midterm' ? (s.score_writing || 0) : 0,
+        speaking: s.exam_type === 'midterm' ? (s.score_speaking || 0) : 0,
+        overall: s.exam_type === 'midterm' ? (s.overall_score || 0) : 0
       },
-      // Final IELTS scores (simplified - using single score for all skills)
+      // Final IELTS scores - map from actual score columns
       final: {
-        reading: s.final_score || 0,
-        listening: s.final_score || 0,
-        writing: s.final_score || 0,
-        speaking: s.final_score || 0,
-        overall: s.final_score || 0
+        reading: s.exam_type === 'final' ? (s.score_reading || 0) : 0,
+        listening: s.exam_type === 'final' ? (s.score_listening || 0) : 0,
+        writing: s.exam_type === 'final' ? (s.score_writing || 0) : 0,
+        speaking: s.exam_type === 'final' ? (s.score_speaking || 0) : 0,
+        overall: s.exam_type === 'final' ? (s.overall_score || 0) : 0
       },
-      average: s.average_score || 0,
+      average: s.overall_score || 0, // Use overall_score as average
       updatedAt: s.updated_at
     }));
     
@@ -1919,12 +1926,9 @@ app.get("/make-server-e2861589/grades/by-class", async (c) => {
       .from('scores')
       .select(`
         *,
-        students (
+        students!inner (
           id_student,
-          id_user,
-          user:id_user (
-            full_name
-          )
+          id_user
         ),
         class:id_class (
           id_class,
@@ -1940,6 +1944,18 @@ app.get("/make-server-e2861589/grades/by-class", async (c) => {
       return c.json({ classSummaries: [] });
     }
     
+    // Get all unique user IDs from students
+    const userIds = [...new Set(scores.map(s => s.students.id_user))];
+    
+    // Get user names in a separate query
+    const { data: users } = await supabase
+      .from('user')
+      .select('id_user, full_name')
+      .in('id_user', userIds);
+    
+    // Create a map for quick lookup
+    const userMap = new Map(users?.map(u => [u.id_user, u.full_name]) || []);
+    
     const groupedByClass = scores.reduce((acc, score) => {
       const classId = score.id_class;
       if (!acc[classId]) {
@@ -1954,11 +1970,12 @@ app.get("/make-server-e2861589/grades/by-class", async (c) => {
       acc[classId].students.push({
         id: score.id_score,
         studentId: score.id_student,
-        studentName: score.students?.user?.full_name || '',
-        midtermScore: score.midterm_score || 0,
-        finalScore: score.final_score || 0,
-        averageScore: score.average_score || 0,
-        attendanceScore: score.attendance_score || 0
+        studentName: userMap.get(score.students.id_user) || 'N/A',
+        examType: score.exam_type,
+        midtermScore: score.exam_type === 'midterm' ? (score.overall_score || 0) : 0,
+        finalScore: score.exam_type === 'final' ? (score.overall_score || 0) : 0,
+        averageScore: score.overall_score || 0,
+        attendanceScore: 0 // Attendance not in scores table
       });
       
       return acc;
@@ -1995,20 +2012,26 @@ app.post("/make-server-e2861589/grades", async (c) => {
     const gradeData = await c.req.json();
     
     // Extract scores from frontend format
-    const attendanceScore = gradeData.attendance?.attendedSessions || gradeData.attendanceScore || 0;
-    const midtermScore = gradeData.midterm?.overall || gradeData.midtermScore || 0;
-    const finalScore = gradeData.final?.overall || gradeData.finalScore || 0;
-    const averageScore = gradeData.average || (attendanceScore * 0.1 + midtermScore * 0.3 + finalScore * 0.6);
+    const examType = gradeData.examType || 'midterm';
+    const listening = gradeData.midterm?.listening || gradeData.final?.listening || 0;
+    const reading = gradeData.midterm?.reading || gradeData.final?.reading || 0;
+    const writing = gradeData.midterm?.writing || gradeData.final?.writing || 0;
+    const speaking = gradeData.midterm?.speaking || gradeData.final?.speaking || 0;
+    const overall = gradeData.midterm?.overall || gradeData.final?.overall || 
+                     ((listening + reading + writing + speaking) / 4);
     
     const { data: score, error } = await supabase
       .from('scores')
       .insert({
         id_student: gradeData.studentId, // Fixed: Use id_student (FK column in scores table)
         id_class: gradeData.classId,
-        attendance_score: attendanceScore,
-        midterm_score: midtermScore,
-        final_score: finalScore,
-        average_score: averageScore
+        exam_type: examType,
+        exam_date: gradeData.examDate || new Date().toISOString().split('T')[0],
+        score_listening: listening,
+        score_reading: reading,
+        score_writing: writing,
+        score_speaking: speaking,
+        overall_score: overall
       })
       .select()
       .single();
@@ -2019,26 +2042,28 @@ app.post("/make-server-e2861589/grades", async (c) => {
       id: score.id_score,
       studentId: gradeData.studentId,
       classId: gradeData.classId,
+      examType: score.exam_type,
+      examDate: score.exam_date,
       attendance: {
         totalSessions: 0,
-        attendedSessions: attendanceScore,
+        attendedSessions: 0,
         absentSessions: 0
       },
       midterm: {
-        reading: midtermScore,
-        listening: midtermScore,
-        writing: midtermScore,
-        speaking: midtermScore,
-        overall: midtermScore
+        reading: score.exam_type === 'midterm' ? score.score_reading : 0,
+        listening: score.exam_type === 'midterm' ? score.score_listening : 0,
+        writing: score.exam_type === 'midterm' ? score.score_writing : 0,
+        speaking: score.exam_type === 'midterm' ? score.score_speaking : 0,
+        overall: score.exam_type === 'midterm' ? score.overall_score : 0
       },
       final: {
-        reading: finalScore,
-        listening: finalScore,
-        writing: finalScore,
-        speaking: finalScore,
-        overall: finalScore
+        reading: score.exam_type === 'final' ? score.score_reading : 0,
+        listening: score.exam_type === 'final' ? score.score_listening : 0,
+        writing: score.exam_type === 'final' ? score.score_writing : 0,
+        speaking: score.exam_type === 'final' ? score.score_speaking : 0,
+        overall: score.exam_type === 'final' ? score.overall_score : 0
       },
-      average: averageScore
+      average: score.overall_score
     });
   } catch (error) {
     console.error("Create grade error:", error);
@@ -2052,18 +2077,24 @@ app.put("/make-server-e2861589/grades/:id", async (c) => {
     const gradeData = await c.req.json();
     
     // Extract scores from frontend format
-    const attendanceScore = gradeData.attendance?.attendedSessions || gradeData.attendanceScore || 0;
-    const midtermScore = gradeData.midterm?.overall || gradeData.midtermScore || 0;
-    const finalScore = gradeData.final?.overall || gradeData.finalScore || 0;
-    const averageScore = gradeData.average || (attendanceScore * 0.1 + midtermScore * 0.3 + finalScore * 0.6);
+    const examType = gradeData.examType || 'midterm';
+    const listening = gradeData.midterm?.listening || gradeData.final?.listening || 0;
+    const reading = gradeData.midterm?.reading || gradeData.final?.reading || 0;
+    const writing = gradeData.midterm?.writing || gradeData.final?.writing || 0;
+    const speaking = gradeData.midterm?.speaking || gradeData.final?.speaking || 0;
+    const overall = gradeData.midterm?.overall || gradeData.final?.overall || 
+                     ((listening + reading + writing + speaking) / 4);
     
     const { error } = await supabase
       .from('scores')
       .update({
-        attendance_score: attendanceScore,
-        midterm_score: midtermScore,
-        final_score: finalScore,
-        average_score: averageScore
+        exam_type: examType,
+        exam_date: gradeData.examDate || new Date().toISOString().split('T')[0],
+        score_listening: listening,
+        score_reading: reading,
+        score_writing: writing,
+        score_speaking: speaking,
+        overall_score: overall
       })
       .eq('id_score', id);
     
@@ -2109,6 +2140,528 @@ app.delete("/make-server-e2861589/grades/:id", async (c) => {
   } catch (error) {
     console.error("Delete grade error:", error);
     return c.json({ error: "Lỗi khi xóa điểm" }, 500);
+  }
+});
+
+// ========================================
+// NOTIFICATIONS APIs
+// ========================================
+
+// GET all notifications (for DocumentManagement Announcements tab)
+app.get("/make-server-e2861589/notifications", async (c) => {
+  try {
+    console.log('📢 [Server] GET /notifications - Start');
+    
+    const { data: notifications, error } = await supabase
+      .from('notification')
+      .select(`
+        *,
+        teachers!id_teacher (
+          user!id_user (
+            full_name
+          )
+        ),
+        class!id_class (
+          name_class
+        )
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('❌ [Server] Notifications query error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Server] Found notifications:', notifications?.length || 0);
+    
+    // Transform to match frontend format
+    const transformed = notifications?.map(n => ({
+      id: n.id_notification,
+      title: 'Thông báo', // notification table doesn't have title field
+      content: n.description || '', // ← Use description field from schema
+      postedBy: n.teachers?.user?.full_name || 'Giáo viên',
+      postedDate: new Date(n.created_at).toLocaleDateString('vi-VN'),
+      targetAudience: 'all', // notification table doesn't have target_role
+      targetClass: n.class?.name_class || null,
+      priority: 'normal', // notification table doesn't have priority field
+      isVisible: true, // notification table doesn't have expires_at
+      createdAt: n.created_at,
+      expiresAt: null
+    })) || [];
+    
+    return c.json(transformed);
+  } catch (error) {
+    console.error("❌ [Server] Get notifications error:", error);
+    return c.json({ error: "Lỗi khi lấy thông báo" }, 500);
+  }
+});
+
+// POST new notification
+app.post("/make-server-e2861589/notifications", async (c) => {
+  try {
+    const notificationData = await c.req.json();
+    console.log('📢 [Server] POST /notifications - Creating:', notificationData);
+    
+    // Generate unique notification ID (ND001, ND002, ...)
+    const notificationId = await generateNextId('notification', 'id_notification');
+    console.log('🆔 [CREATE NOTIFICATION] Generated ID:', notificationId);
+    
+    // WORKAROUND: If id_class is required but not provided, use first available class
+    // This is a temporary solution - ideally id_class should be nullable in DB
+    let classId = notificationData.targetClass;
+    if (!classId) {
+      console.log('⚠️ [CREATE NOTIFICATION] No targetClass provided, fetching default class...');
+      const { data: defaultClass } = await supabase
+        .from('class')
+        .select('id_class')
+        .limit(1)
+        .single();
+      
+      if (defaultClass) {
+        classId = defaultClass.id_class;
+        console.log('✅ [CREATE NOTIFICATION] Using default class:', classId);
+      } else {
+        console.error('❌ [CREATE NOTIFICATION] No classes found in database!');
+        return c.json({ error: "Không tìm thấy lớp học nào. Vui lòng tạo lớp học trước." }, 400);
+      }
+    }
+    
+    const { data: notification, error } = await supabase
+      .from('notification')
+      .insert({
+        id_notification: notificationId, // ✅ Generate ID manually
+        id_class: classId, // ✅ Use provided class or default
+        id_teacher: notificationData.teacherId || null, // ← FK to teachers table (creator)
+        description: notificationData.content || '' // ← Use description field
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Notification created:', notification.id_notification);
+    return c.json({ 
+      id: notification.id_notification,
+      title: 'Thông báo',
+      content: notificationData.content,
+      postedBy: notificationData.postedBy || 'Giáo viên',
+      postedDate: new Date(notification.created_at).toLocaleDateString('vi-VN'),
+      targetAudience: 'all',
+      targetClass: notificationData.targetClass,
+      priority: 'normal',
+      isVisible: true,
+      createdAt: notification.created_at
+    });
+  } catch (error) {
+    console.error("❌ [Server] Create notification error:", error);
+    return c.json({ error: "Lỗi khi tạo thông báo" }, 500);
+  }
+});
+
+// PUT update notification visibility
+app.put("/make-server-e2861589/notifications/:id/visibility", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { isVisible } = await c.req.json();
+    
+    console.log(`📢 [Server] PUT /notifications/${id}/visibility - Setting to:`, isVisible);
+    
+    // NOTE: notification table doesn't have expires_at or visibility field
+    // For now, we just return success without updating anything
+    // If you need visibility control, add a new column to notification table
+    
+    console.log('✅ [Server] Notification visibility updated (no-op for now)');
+    return c.json({ success: true, isVisible });
+  } catch (error) {
+    console.error("❌ [Server] Update notification visibility error:", error);
+    return c.json({ error: "Lỗi khi cập nhật hiển thị thông báo" }, 500);
+  }
+});
+
+// DELETE notification
+app.delete("/make-server-e2861589/notifications/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    console.log(`📢 [Server] DELETE /notifications/${id}`);
+    
+    const { error } = await supabase
+      .from('notification')
+      .delete()
+      .eq('id_notification', id);
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Notification deleted');
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("❌ [Server] Delete notification error:", error);
+    return c.json({ error: "Lỗi khi xóa thông báo" }, 500);
+  }
+});
+
+// ========================================
+// FEEDBACK APIs
+// ========================================
+
+// GET all feedbacks
+app.get("/make-server-e2861589/feedback", async (c) => {
+  try {
+    console.log('💬 [Server] GET /feedback - Start');
+    
+    const { data: feedbacks, error } = await supabase
+      .from('feedbacks')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Found feedbacks:', feedbacks?.length || 0);
+    
+    // Transform to match frontend format
+    const transformed = feedbacks?.map(f => ({
+      id: f.id_feedback,
+      sender: f.sender_name || 'Người dùng',
+      senderRole: f.sender_role || 'student',
+      type: f.type || 'general',
+      content: f.content || '',
+      status: f.status || 'pending',
+      date: new Date(f.created_at).toLocaleDateString('vi-VN'),
+      reply: f.reply || null
+    })) || [];
+    
+    return c.json({ feedbacks: transformed });
+  } catch (error) {
+    console.error("❌ [Server] Get feedbacks error:", error);
+    return c.json({ error: "Lỗi khi lấy danh sách phản hồi" }, 500);
+  }
+});
+
+// POST new feedback
+app.post("/make-server-e2861589/feedback", async (c) => {
+  try {
+    const feedbackData = await c.req.json();
+    console.log('💬 [Server] POST /feedback - Creating:', feedbackData);
+    
+    // Generate unique feedback ID (PH001, PH002, ...) - PH = Phản Hồi
+    const feedbackId = await generateNextId('feedbacks', 'id_feedback');
+    console.log('🆔 [CREATE FEEDBACK] Generated ID:', feedbackId);
+    
+    const { data: feedback, error } = await supabase
+      .from('feedbacks')
+      .insert({
+        id_feedback: feedbackId,
+        sender_name: feedbackData.sender,
+        sender_role: feedbackData.senderRole,
+        type: feedbackData.type,
+        content: feedbackData.content,
+        status: feedbackData.status || 'pending'
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Feedback created:', feedback.id_feedback);
+    return c.json({ 
+      id: feedback.id_feedback,
+      sender: feedback.sender_name,
+      senderRole: feedback.sender_role,
+      type: feedback.type,
+      content: feedback.content,
+      status: feedback.status,
+      date: new Date(feedback.created_at).toLocaleDateString('vi-VN'),
+      reply: null
+    });
+  } catch (error) {
+    console.error("❌ [Server] Create feedback error:", error);
+    return c.json({ error: "Lỗi khi tạo phản hồi" }, 500);
+  }
+});
+
+// PUT update feedback (for replies and status)
+app.put("/make-server-e2861589/feedback/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const feedbackData = await c.req.json();
+    console.log(`💬 [Server] PUT /feedback/${id} - Updating:`, feedbackData);
+    
+    const updateData: any = {};
+    if (feedbackData.reply !== undefined) updateData.reply = feedbackData.reply;
+    if (feedbackData.status !== undefined) updateData.status = feedbackData.status;
+    
+    const { data: feedback, error } = await supabase
+      .from('feedbacks')
+      .update(updateData)
+      .eq('id_feedback', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Feedback updated:', feedback.id_feedback);
+    return c.json({ 
+      id: feedback.id_feedback,
+      sender: feedback.sender_name,
+      senderRole: feedback.sender_role,
+      type: feedback.type,
+      content: feedback.content,
+      status: feedback.status,
+      date: new Date(feedback.created_at).toLocaleDateString('vi-VN'),
+      reply: feedback.reply
+    });
+  } catch (error) {
+    console.error("❌ [Server] Update feedback error:", error);
+    return c.json({ error: "Lỗi khi cập nhật phản hồi" }, 500);
+  }
+});
+
+// ========================================
+// ASSIGNMENTS APIs
+// ========================================
+
+// GET all assignments
+app.get("/make-server-e2861589/assignments", async (c) => {
+  try {
+    console.log('📝 [Server] GET /assignments - Start');
+    
+    const { data: assignments, error } = await supabase
+      .from('asignments')
+      .select(`
+        *,
+        class:id_class (
+          name_class,
+          id_class
+        ),
+        teachers:created_by (
+          id_teacher,
+          user:id_user (
+            full_name
+          )
+        )
+      `)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('❌ [Server] Assignments query error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Server] Found assignments:', assignments?.length || 0);
+    console.log('📊 [Server] First assignment data:', JSON.stringify(assignments?.[0], null, 2));
+    
+    // Handle empty result
+    if (!assignments || assignments.length === 0) {
+      console.log('ℹ️ [Server] No assignments found, returning empty array');
+      return c.json([]);
+    }
+    
+    // Transform to match frontend format
+    const transformed = assignments.map(a => {
+      console.log('🔄 [Server] Processing assignment ID:', a.id_asignment, 'Type:', typeof a.id_asignment);
+      return {
+        id: a.id_asignment?.toString() || 'unknown',
+      title: a.title || 'Untitled',
+      description: a.description || '',
+      className: a.class?.name_class || 'N/A',
+      classId: a.class?.id_class || null,
+      teacher: a.teachers?.user?.full_name || 'N/A',
+      dueDate: a.due_date ? new Date(a.due_date).toLocaleDateString('vi-VN') : 'N/A',
+      dueDateRaw: a.due_date,
+      status: a.due_date && new Date(a.due_date) < new Date() ? 'closed' : 'open',
+      fileUrl: a.file_url,
+      createdAt: a.created_at,
+      submissions: 0, // Will be calculated from submissions table
+      totalStudents: 0 // Will be calculated from enrollments
+    };
+    });
+    
+    return c.json(transformed);
+  } catch (error) {
+    console.error("❌ [Server] Get assignments error:", error);
+    return c.json({ error: "Lỗi khi lấy danh sách bài tập" }, 500);
+  }
+});
+
+// POST new assignment
+app.post("/make-server-e2861589/assignments", async (c) => {
+  try {
+    const assignmentData = await c.req.json();
+    console.log('📝 [Server] POST /assignments - Creating:', assignmentData);
+    
+    const { data: assignment, error } = await supabase
+      .from('asignments')
+      .insert({
+        id_class: assignmentData.classId,
+        title: assignmentData.title,
+        description: assignmentData.description,
+        file_url: assignmentData.fileUrl || null,
+        created_by: assignmentData.createdBy,
+        due_date: assignmentData.dueDate || null
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Assignment created:', assignment.id_asignment);
+    return c.json({ 
+      id: assignment.id_asignment.toString(),
+      ...assignmentData
+    });
+  } catch (error) {
+    console.error("❌ [Server] Create assignment error:", error);
+    return c.json({ error: "Lỗi khi tạo bài tập" }, 500);
+  }
+});
+
+// PUT update assignment
+app.put("/make-server-e2861589/assignments/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const assignmentData = await c.req.json();
+    
+    console.log(`📝 [Server] PUT /assignments/${id} - Updating`);
+    
+    const { error } = await supabase
+      .from('asignments')
+      .update({
+        title: assignmentData.title,
+        description: assignmentData.description,
+        file_url: assignmentData.fileUrl || null,
+        due_date: assignmentData.dueDate || null
+      })
+      .eq('id_asignment', id);
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Assignment updated');
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("❌ [Server] Update assignment error:", error);
+    return c.json({ error: "Lỗi khi cập nhật bài tập" }, 500);
+  }
+});
+
+// DELETE assignment
+app.delete("/make-server-e2861589/assignments/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    console.log(`📝 [Server] DELETE /assignments/${id}`);
+    
+    const { error } = await supabase
+      .from('asignments')
+      .delete()
+      .eq('id_asignment', id);
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Assignment deleted');
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("❌ [Server] Delete assignment error:", error);
+    return c.json({ error: "Lỗi khi xóa bài tập" }, 500);
+  }
+});
+
+// ========================================
+// ASSIGNMENT SUBMISSIONS APIs
+// ========================================
+
+// GET submissions for an assignment
+app.get("/make-server-e2861589/assignments/:id/submissions", async (c) => {
+  try {
+    const assignmentId = c.req.param('id');
+    console.log(`📝 [Server] GET /assignments/${assignmentId}/submissions`);
+    
+    const { data: submissions, error } = await supabase
+      .from('asignment_submissions')
+      .select(`
+        *,
+        student:id_student (
+          full_name,
+          id_student
+        )
+      `)
+      .eq('id_asignment', assignmentId)
+      .order('submitted_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Found submissions:', submissions?.length || 0);
+    
+    // Transform to match frontend format
+    const transformed = submissions?.map(s => ({
+      id: s.id.toString(),
+      assignmentId: s.id_asignment.toString(),
+      studentName: s.student?.full_name || 'N/A',
+      studentId: s.id_student.toString(),
+      submittedDate: s.submitted_at ? new Date(s.submitted_at).toLocaleDateString('vi-VN') : undefined,
+      fileUrl: s.file_url,
+      grade: s.grade,
+      feedback: s.feedback,
+      status: s.grade ? 'graded' : (s.submitted_at ? 'submitted' : 'not_submitted')
+    })) || [];
+    
+    return c.json(transformed);
+  } catch (error) {
+    console.error("❌ [Server] Get submissions error:", error);
+    return c.json({ error: "Lỗi khi lấy danh sách bài nộp" }, 500);
+  }
+});
+
+// POST new submission (student submits assignment)
+app.post("/make-server-e2861589/submissions", async (c) => {
+  try {
+    const submissionData = await c.req.json();
+    console.log('📝 [Server] POST /submissions - Creating:', submissionData);
+    
+    const { data: submission, error } = await supabase
+      .from('asignment_submissions')
+      .insert({
+        id_asignment: submissionData.assignmentId,
+        id_student: submissionData.studentId,
+        file_url: submissionData.fileUrl || null,
+        submitted_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Submission created:', submission.id);
+    return c.json({ 
+      id: submission.id.toString(),
+      success: true
+    });
+  } catch (error) {
+    console.error("❌ [Server] Create submission error:", error);
+    return c.json({ error: "Lỗi khi nộp bài tập" }, 500);
+  }
+});
+
+// PUT grade submission (teacher grades)
+app.put("/make-server-e2861589/submissions/:id/grade", async (c) => {
+  try {
+    const id = c.req.param('id');
+    const gradeData = await c.req.json();
+    
+    console.log(`📝 [Server] PUT /submissions/${id}/grade`);
+    
+    const { error } = await supabase
+      .from('asignment_submissions')
+      .update({
+        grade: gradeData.grade,
+        feedback: gradeData.feedback || null
+      })
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    console.log('✅ [Server] Submission graded');
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("❌ [Server] Grade submission error:", error);
+    return c.json({ error: "Lỗi khi chấm điểm" }, 500);
   }
 });
 
@@ -2586,12 +3139,40 @@ app.delete("/make-server-e2861589/users/:id", async (c) => {
     // Get user to find account
     const { data: user } = await supabase
       .from('user')
-      .select('id_account')
+      .select('id_account, id_user')
       .eq('id_user', id)
       .single();
     
     if (!user) {
       return c.json({ error: "Không tìm thấy người dùng" }, 404);
+    }
+    
+    // Delete related student records if exists
+    const { data: student } = await supabase
+      .from('students')
+      .select('id_student')
+      .eq('id_user', id)
+      .single();
+    
+    if (student) {
+      // Delete class_students first (foreign key constraint)
+      await supabase.from('class_students').delete().eq('id_student', student.id_student);
+      // Delete student record
+      await supabase.from('students').delete().eq('id_student', student.id_student);
+      console.log(`✅ [Server] Deleted student record for user ${id}`);
+    }
+    
+    // Delete related teacher records if exists
+    const { data: teacher } = await supabase
+      .from('teachers')
+      .select('id_teacher')
+      .eq('id_user', id)
+      .single();
+    
+    if (teacher) {
+      // Delete teacher record
+      await supabase.from('teachers').delete().eq('id_teacher', teacher.id_teacher);
+      console.log(`✅ [Server] Deleted teacher record for user ${id}`);
     }
     
     // Delete user
@@ -2601,6 +3182,7 @@ app.delete("/make-server-e2861589/users/:id", async (c) => {
     await supabase.from('account_roles').delete().eq('id_account', user.id_account);
     await supabase.from('accounts').delete().eq('id_account', user.id_account);
     
+    console.log(`✅ [Server] User ${id} deleted successfully (cascade: student/teacher → user → account_roles → account)`);
     return c.json({ success: true });
   } catch (error) {
     console.error("Delete user error:", error);
@@ -2741,7 +3323,7 @@ app.post("/make-server-e2861589/migrate-user-records", async (c) => {
 // Alias /centers to /campuses for consistency
 app.get("/make-server-e2861589/centers", async (c) => {
   try {
-    console.log('🏢 [Server] GET /centers - Redirect to /campuses');
+    console.log('��� [Server] GET /centers - Redirect to /campuses');
     
     const { data: centers, error } = await supabase
       .from('centers')
@@ -2781,17 +3363,28 @@ app.get("/make-server-e2861589/campuses", async (c) => {
       return c.json([]);
     }
     
+    // Get all unique manager user IDs
+    const managerIds = [...new Set(campuses.map(c => c.id_manager).filter(Boolean))];
+    
+    // Get manager names from user table
+    const { data: managers } = await supabase
+      .from('user')
+      .select('id_user, full_name')
+      .in('id_user', managerIds);
+    
+    // Create map for quick lookup
+    const managerMap = new Map(managers?.map(m => [m.id_user, m.full_name]) || []);
+    
     const transformed = campuses.map(c => ({
       id: c.id_center,
       code: c.id_center, // id_center is already formatted as CS001, CS002...
-      name: c.name,
+      name: c.name, // Fix: use correct column name from schema
       address: c.address,
       phone: c.phone,
       email: c.email || '',
       status: c.status || 'active',
-      capacity: c.capacity || 0,
-      currentStudents: c.current_students || 0,
-      manager: c.manager || '',
+      id_manager: c.id_manager || '',
+      manager: managerMap.get(c.id_manager) || 'Chưa có',
       description: c.description || '',
       createdAt: c.created_at
     }));
@@ -2852,9 +3445,7 @@ app.post("/make-server-e2861589/campuses", async (c) => {
         phone: campusData.phone,
         email: campusData.email || '',
         status: campusData.status || 'active',
-        capacity: campusData.capacity || 0,
-        current_students: campusData.currentStudents || 0,
-        manager: campusData.manager || '',
+        id_manager: campusData.id_manager || null,
         description: campusData.description || ''
       })
       .select()
@@ -2863,9 +3454,11 @@ app.post("/make-server-e2861589/campuses", async (c) => {
     if (error) throw error;
     
     return c.json({
-      id: campus.id_center,
-      code: campus.id_center,
-      ...campusData
+      campus: {
+        id: campus.id_center,
+        code: campus.id_center,
+        ...campusData
+      }
     });
   } catch (error) {
     console.error("Create campus error:", error);
@@ -2886,9 +3479,7 @@ app.put("/make-server-e2861589/campuses/:id", async (c) => {
         phone: campusData.phone,
         email: campusData.email,
         status: campusData.status,
-        capacity: campusData.capacity,
-        current_students: campusData.currentStudents,
-        manager: campusData.manager,
+        id_manager: campusData.id_manager || null,
         description: campusData.description
       })
       .eq('id_center', id);
@@ -3517,6 +4108,209 @@ app.get("/make-server-e2861589/assignments/:id/submissions", async (c) => {
   } catch (error) {
     console.error("❌ [Server] Get submissions error:", error);
     return c.json({ error: "Lỗi khi lấy danh sách bài nộp" }, 500);
+  }
+});
+
+// ========================================
+// REPORTS & STATISTICS APIs
+// ========================================
+
+// GET comprehensive statistics for reports
+app.get("/make-server-e2861589/reports/statistics", async (c) => {
+  try {
+    console.log('📊 [Server] GET /reports/statistics - Start');
+    
+    // Fetch all data in parallel for better performance
+    const [
+      studentsResult,
+      teachersResult,
+      classesResult,
+      centersResult,
+      gradesResult,
+      attendancesResult,
+      feedbacksResult,
+      enrollmentsResult
+    ] = await Promise.all([
+      supabase.from('students').select('*'),
+      supabase.from('teachers').select('*, user:id_user(full_name)'),
+      supabase.from('class').select('*'),
+      supabase.from('centers').select('*'),
+      supabase.from('grade').select('*'),
+      supabase.from('attendance').select('*'),
+      supabase.from('feedbacks').select('*'),
+      supabase.from('enrollment').select('*')
+    ]);
+
+    // Check for errors
+    if (studentsResult.error) throw studentsResult.error;
+    if (teachersResult.error) throw teachersResult.error;
+    if (classesResult.error) throw classesResult.error;
+    if (centersResult.error) throw centersResult.error;
+
+    const students = studentsResult.data || [];
+    const teachers = teachersResult.data || [];
+    const classes = classesResult.data || [];
+    const centers = centersResult.data || [];
+    const grades = gradesResult.data || [];
+    const attendances = attendancesResult.data || [];
+    const feedbacks = feedbacksResult.data || [];
+    const enrollments = enrollmentsResult.data || [];
+
+    console.log('✅ [Reports] Data loaded:', {
+      students: students.length,
+      teachers: teachers.length,
+      classes: classes.length,
+      centers: centers.length,
+      grades: grades.length,
+      attendances: attendances.length,
+      feedbacks: feedbacks.length,
+      enrollments: enrollments.length
+    });
+
+    // 🔍 DEBUG: Check class status format
+    if (classes.length > 0) {
+      console.log('🔍 [Reports] First class status:', {
+        status: classes[0].status,
+        type: typeof classes[0].status,
+        sample: classes.slice(0, 3).map((c: any) => ({ id: c.id_class, status: c.status }))
+      });
+    }
+
+    // Helper function to check if class is active (supports both integer and string)
+    const isClassActive = (cls: any) => {
+      return cls.status === 'active' || cls.status === 1;
+    };
+
+    // Calculate enrollment trend by month (last 6 months)
+    const now = new Date();
+    const enrollmentTrend = [];
+    for (let i = 5; i >= 0; i--) {
+      const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStr = `T${month.getMonth() + 1}/${month.getFullYear()}`;
+      const monthEnrollments = enrollments.filter((e: any) => {
+        const enrollDate = new Date(e.created_at);
+        return enrollDate.getMonth() === month.getMonth() && 
+               enrollDate.getFullYear() === month.getFullYear();
+      });
+      enrollmentTrend.push({
+        month: monthStr,
+        students: monthEnrollments.length,
+        classes: classes.filter((c: any) => {
+          const classDate = new Date(c.created_at);
+          return classDate.getMonth() === month.getMonth() && 
+                 classDate.getFullYear() === month.getFullYear();
+        }).length
+      });
+    }
+
+    // Students by center
+    const studentsByCenter = centers.map((center: any) => ({
+      name: center.name_center,
+      students: students.filter((s: any) => s.id_center === center.id_center).length,
+      classes: classes.filter((c: any) => c.id_center === center.id_center && isClassActive(c)).length
+    }));
+
+    // Classes by course level
+    const classesByCourse = [
+      { name: 'IELTS 4.0', value: 'IELTS_4.0' },
+      { name: 'IELTS 5.5', value: 'IELTS_5.5' },
+      { name: 'IELTS 6.5', value: 'IELTS_6.5' },
+      { name: 'IELTS 7.5+', value: 'IELTS_7.5_plus' }
+    ].map(course => ({
+      name: course.name,
+      classes: classes.filter((c: any) => c.id_course === course.value).length,
+      students: enrollments.filter((e: any) => {
+        const cls = classes.find((c: any) => c.id_class === e.id_class);
+        return cls?.id_course === course.value;
+      }).length
+    }));
+
+    // Grade statistics (average by skill)
+    const gradesBySkill = ['listening', 'reading', 'writing', 'speaking'].map(skill => {
+      const skillGrades = grades.filter((g: any) => g[`score_${skill}`] !== null);
+      const avg = skillGrades.length > 0
+        ? skillGrades.reduce((sum: number, g: any) => sum + (g[`score_${skill}`] || 0), 0) / skillGrades.length
+        : 0;
+      return {
+        skill: skill.charAt(0).toUpperCase() + skill.slice(1),
+        average: Math.round(avg * 10) / 10
+      };
+    });
+
+    // Attendance rate
+    const totalAttendances = attendances.length;
+    const presentAttendances = attendances.filter((a: any) => a.status === 'present').length;
+    const attendanceRate = totalAttendances > 0 
+      ? Math.round((presentAttendances / totalAttendances) * 100) 
+      : 0;
+
+    // Feedback statistics
+    const feedbackStats = {
+      total: feedbacks.length,
+      pending: feedbacks.filter((f: any) => f.status === 'pending').length,
+      responded: feedbacks.filter((f: any) => f.status === 'responded').length,
+      byType: ['academic', 'technical', 'course', 'question', 'general'].map(type => ({
+        type,
+        count: feedbacks.filter((f: any) => f.type === type).length
+      }))
+    };
+
+    // Student status distribution
+    const studentsByStatus = [
+      { name: 'Đang học', value: students.filter((s: any) => s.status === 'active').length },
+      { name: 'Đã nghỉ', value: students.filter((s: any) => s.status === 'inactive').length }
+    ];
+
+    // Top performing students (by average grade)
+    const studentGrades = students.map((student: any) => {
+      const studentGradeRecords = grades.filter((g: any) => g.id_student === student.id_student);
+      if (studentGradeRecords.length === 0) return null;
+      
+      const avgGrade = studentGradeRecords.reduce((sum: number, g: any) => {
+        const scoreAvg = (
+          (g.score_listening || 0) + 
+          (g.score_reading || 0) + 
+          (g.score_writing || 0) + 
+          (g.score_speaking || 0)
+        ) / 4;
+        return sum + scoreAvg;
+      }, 0) / studentGradeRecords.length;
+      
+      return {
+        id: student.id_student,
+        name: student.full_name,
+        average: Math.round(avgGrade * 10) / 10
+      };
+    }).filter(Boolean).sort((a: any, b: any) => b.average - a.average).slice(0, 10);
+
+    const response = {
+      summary: {
+        totalStudents: students.length,
+        totalTeachers: teachers.length,
+        totalClasses: classes.length,
+        activeClasses: classes.filter((c: any) => isClassActive(c)).length,
+        totalCenters: centers.length,
+        attendanceRate
+      },
+      enrollmentTrend,
+      studentsByCenter,
+      classesByCourse,
+      gradesBySkill,
+      feedbackStats,
+      studentsByStatus,
+      topStudents: studentGrades,
+      // Raw data for custom filtering in frontend
+      students,
+      teachers,
+      classes,
+      centers
+    };
+
+    console.log('✅ [Reports] Statistics compiled successfully');
+    return c.json(response);
+  } catch (error) {
+    console.error("❌ [Server] Get report statistics error:", error);
+    return c.json({ error: "Lỗi khi lấy báo cáo thống kê" }, 500);
   }
 });
 

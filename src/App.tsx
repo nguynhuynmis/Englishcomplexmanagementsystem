@@ -29,16 +29,16 @@ export type UserRole = 'academic' | 'teacher' | 'student' | 'director';
 export interface User {
   id: string;
   username: string;
-  fullName: string;
+  fullName: string; // Changed from fullname to match backend response
   role: UserRole;
   avatar?: string;
   email?: string;
   phone?: string;
-  dateOfBirth?: string;
+  dateOfBirth?: string; // Changed from dateofbirth for consistency
   gender?: 'male' | 'female' | 'other';
   address?: string;
-  parentName?: string;
-  parentPhone?: string;
+  parentName?: string; // Changed from parentname
+  parentPhone?: string; // Changed from parentphone
   bio?: string;
   code?: string;
   teacherId?: number; // ID from teachers table

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { usersAPI } from '../../utils/api';
+import { usersAPI, studentsAPI, teachersAPI } from '../../utils/api';
 
 interface SystemUser {
   id: string;
@@ -38,7 +38,7 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
     parentName: '',
     parentPhone: '',
     campus: user?.campus || '',
-    enrollmentDate: '', // Add this missing field
+    enrollmentDate: '',
     // Teacher fields
     teacherCode: '',
     specialization: '',
@@ -52,7 +52,67 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
   });
 
   const [loading, setLoading] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Load additional data for edit mode
+  useEffect(() => {
+    if (user && user.id) {
+      loadUserDetails();
+    }
+  }, [user]);
+
+  const loadUserDetails = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingDetails(true);
+      console.log('📝 [UserFormView] Loading details for user:', user.id, 'role:', user.role);
+
+      // If user is a student, load student data
+      if (user.role === 'student') {
+        const students = await studentsAPI.getAll();
+        const studentData = students.find((s: any) => s.id_user === user.id);
+        
+        if (studentData) {
+          console.log('✅ [UserFormView] Student data loaded:', studentData);
+          setFormData((prev: any) => ({
+            ...prev,
+            studentCode: studentData.id_student || '',
+            parentName: studentData.parent_name || '',
+            parentPhone: studentData.parent_phone || '',
+            dateOfBirth: studentData.dob || '',
+            gender: studentData.gender || 'male',
+            address: studentData.address || '',
+          }));
+        }
+      }
+      // If user is a teacher, load teacher data
+      else if (user.role === 'teacher') {
+        const teachers = await teachersAPI.getAll();
+        const teacherData = teachers.find((t: any) => t.id_user === user.id);
+        
+        if (teacherData) {
+          console.log('✅ [UserFormView] Teacher data loaded:', teacherData);
+          setFormData((prev: any) => ({
+            ...prev,
+            teacherCode: teacherData.id_teacher || '',
+            specialization: teacherData.specialization || '',
+            bio: teacherData.bio || '',
+            experienceYears: teacherData.experience_years || '',
+            certifications: teacherData.certifications || '',
+            dateOfBirth: teacherData.dob || '',
+            gender: teacherData.gender || 'male',
+            address: teacherData.address || '',
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('❌ [UserFormView] Error loading user details:', error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
 
   // Validation function
   const validateForm = (): boolean => {
@@ -319,6 +379,14 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 </p>
               </div>
             </>
+          )}
+          {isEditing && loadingDetails && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-blue-800">
+                Đang tải thông tin chi tiết...
+              </p>
+            </div>
           )}
         </div>
 
@@ -652,17 +720,17 @@ export default function UserFormView({ user, initialRole, onBack, onSave }: User
                 </div>
 
                 {/* Certifications */}
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-gray-700 mb-2">
                     Chứng chỉ
                   </label>
-                  <input
-                    type="text"
+                  <textarea
                     value={formData.certifications}
                     onChange={(e) => setFormData({ ...formData, certifications: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 bg-white"
                     style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                    placeholder="Nhập chứng chỉ nếu có"
+                    placeholder="Nhập thông tin chứng chỉ nếu có (VD: IELTS 8.0, TESOL, CELTA...)"
+                    rows={3}
                   />
                   {errors.certifications && <p className="text-red-500 text-sm mt-1">{errors.certifications}</p>}
                 </div>

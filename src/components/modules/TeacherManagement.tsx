@@ -215,27 +215,6 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 mb-4 p-3 rounded-lg" style={{ backgroundColor: 'var(--brand-primary-50)' }}>
-                  {teacher.ieltsScore && (
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">IELTS</p>
-                      <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>{teacher.ieltsScore.toFixed(1)}</p>
-                    </div>
-                  )}
-                  {teacher.toeicScore && (
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">TOEIC</p>
-                      <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>{teacher.toeicScore}</p>
-                    </div>
-                  )}
-                  {teacher.toeflScore && (
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">TOEFL</p>
-                      <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>{teacher.toeflScore}</p>
-                    </div>
-                  )}
-                </div>
-
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleViewDetail(teacher)}
@@ -341,7 +320,7 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
                   <p className="text-gray-900">{new Date(selectedTeacher.dateOfBirth).toLocaleDateString('vi-VN')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 mb-2">Giới tính</p>
+                  <p className="text-sm text-gray-500 mb-2">Gii tính</p>
                   <p className="text-gray-900">
                     {selectedTeacher.gender === 'male' ? 'Nam' : selectedTeacher.gender === 'female' ? 'Nữ' : 'Khác'}
                   </p>
@@ -361,134 +340,46 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
               </div>
             </div>
 
-            {/* Bằng cấp & Chứng chỉ */}
+            {/* Chứng chỉ */}
             <div>
-              <h2 className="text-gray-900 mb-4">Bằng cấp & Chứng chỉ</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {selectedTeacher.ieltsScore && (
-                  <div className="p-4 rounded-lg border-2" style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-50)' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Award className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
-                      <h3 className="text-gray-900">IELTS</h3>
-                    </div>
-                    <p className="text-3xl mb-1" style={{ color: 'var(--brand-primary)' }}>{selectedTeacher.ieltsScore.toFixed(1)}</p>
-                    <p className="text-sm text-gray-600 mb-2">Điểm tổng</p>
-                    {selectedTeacher.ieltsProof && (
-                      <div className="mt-2 p-2 bg-white rounded border border-gray-200">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-blue-600" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700 truncate">{selectedTeacher.ieltsProof.fileName}</p>
-                            <p className="text-xs text-gray-500">{new Date(selectedTeacher.ieltsProof.uploadedAt).toLocaleDateString('vi-VN')}</p>
-                          </div>
-                          <button
-                            onClick={() => alert(`Xem PDF: ${selectedTeacher.ieltsProof?.fileName}`)}
-                            className="p-1 hover:bg-blue-50 rounded"
-                            title="Xem file"
-                          >
-                            <Download className="w-4 h-4 text-blue-600" />
-                          </button>
+              <h2 className="text-gray-900 mb-4">Chứng chỉ</h2>
+              <div className="space-y-2">
+                {(Array.isArray(selectedTeacher.certificates) 
+                  ? selectedTeacher.certificates 
+                  : (selectedTeacher.certificates && typeof selectedTeacher.certificates === 'string' && selectedTeacher.certificates.trim())
+                    ? selectedTeacher.certificates.split(',').map(c => c.trim()).filter(Boolean)
+                    : []
+                ).map((cert, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span
+                      className="px-4 py-2 rounded-lg flex-1"
+                      style={{ backgroundColor: 'var(--pastel-lavender-light)', color: 'var(--pastel-lavender-dark)' }}
+                    >
+                      {cert}
+                    </span>
+                    {selectedTeacher.certificateProofs?.[cert] && (
+                      <div className="p-2 bg-green-50 border border-green-200 rounded flex items-center gap-2 w-64">
+                        <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-green-700 truncate">{selectedTeacher.certificateProofs[cert].fileName}</p>
+                          <p className="text-xs text-green-600">{new Date(selectedTeacher.certificateProofs[cert].uploadedAt).toLocaleDateString('vi-VN')}</p>
                         </div>
+                        <button
+                          onClick={() => alert(`Xem PDF: ${selectedTeacher.certificateProofs?.[cert]?.fileName}`)}
+                          className="p-1 hover:bg-green-100 rounded flex-shrink-0"
+                          title="Xem file"
+                        >
+                          <Download className="w-3.5 h-3.5 text-green-600" />
+                        </button>
                       </div>
                     )}
                   </div>
+                ))}
+                {(!selectedTeacher.certificates || 
+                  (Array.isArray(selectedTeacher.certificates) && selectedTeacher.certificates.length === 0) ||
+                  (typeof selectedTeacher.certificates === 'string' && !selectedTeacher.certificates.trim())) && (
+                  <p className="text-gray-500 italic">Chưa có chứng chỉ</p>
                 )}
-                
-                {selectedTeacher.toeicScore && (
-                  <div className="p-4 rounded-lg border-2" style={{ borderColor: '#00b894', backgroundColor: 'var(--pastel-green-light)' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Award className="w-5 h-5 text-green-600" />
-                      <h3 className="text-gray-900">TOEIC</h3>
-                    </div>
-                    <p className="text-3xl text-green-600 mb-1">{selectedTeacher.toeicScore}</p>
-                    <p className="text-sm text-gray-600 mb-2">Điểm số</p>
-                    {selectedTeacher.toeicProof && (
-                      <div className="mt-2 p-2 bg-white rounded border border-gray-200">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-green-600" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700 truncate">{selectedTeacher.toeicProof.fileName}</p>
-                            <p className="text-xs text-gray-500">{new Date(selectedTeacher.toeicProof.uploadedAt).toLocaleDateString('vi-VN')}</p>
-                          </div>
-                          <button
-                            onClick={() => alert(`Xem PDF: ${selectedTeacher.toeicProof?.fileName}`)}
-                            className="p-1 hover:bg-green-50 rounded"
-                            title="Xem file"
-                          >
-                            <Download className="w-4 h-4 text-green-600" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {selectedTeacher.toeflScore && (
-                  <div className="p-4 rounded-lg border-2" style={{ borderColor: '#ffe9ae', backgroundColor: 'var(--pastel-yellow-light)' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Award className="w-5 h-5 text-orange-600" />
-                      <h3 className="text-gray-900">TOEFL</h3>
-                    </div>
-                    <p className="text-3xl text-orange-600 mb-1">{selectedTeacher.toeflScore}</p>
-                    <p className="text-sm text-gray-600 mb-2">Điểm số</p>
-                    {selectedTeacher.toeflProof && (
-                      <div className="mt-2 p-2 bg-white rounded border border-gray-200">
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-orange-600" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-700 truncate">{selectedTeacher.toeflProof.fileName}</p>
-                            <p className="text-xs text-gray-500">{new Date(selectedTeacher.toeflProof.uploadedAt).toLocaleDateString('vi-VN')}</p>
-                          </div>
-                          <button
-                            onClick={() => alert(`Xem PDF: ${selectedTeacher.toeflProof?.fileName}`)}
-                            className="p-1 hover:bg-orange-50 rounded"
-                            title="Xem file"
-                          >
-                            <Download className="w-4 h-4 text-orange-600" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-gray-900 mb-3">Chứng chỉ khác</h3>
-                <div className="space-y-2">
-                  {(Array.isArray(selectedTeacher.certificates) 
-                    ? selectedTeacher.certificates 
-                    : (selectedTeacher.certificates && typeof selectedTeacher.certificates === 'string' && selectedTeacher.certificates.trim())
-                      ? selectedTeacher.certificates.split(',').map(c => c.trim()).filter(Boolean)
-                      : []
-                  ).map((cert, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <span
-                        className="px-4 py-2 rounded-lg flex-1"
-                        style={{ backgroundColor: 'var(--pastel-lavender-light)', color: 'var(--pastel-lavender-dark)' }}
-                      >
-                        {cert}
-                      </span>
-                      {selectedTeacher.certificateProofs?.[cert] && (
-                        <div className="p-2 bg-green-50 border border-green-200 rounded flex items-center gap-2 w-64">
-                          <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-green-700 truncate">{selectedTeacher.certificateProofs[cert].fileName}</p>
-                            <p className="text-xs text-green-600">{new Date(selectedTeacher.certificateProofs[cert].uploadedAt).toLocaleDateString('vi-VN')}</p>
-                          </div>
-                          <button
-                            onClick={() => alert(`Xem PDF: ${selectedTeacher.certificateProofs?.[cert]?.fileName}`)}
-                            className="p-1 hover:bg-green-100 rounded flex-shrink-0"
-                            title="Xem file"
-                          >
-                            <Download className="w-3.5 h-3.5 text-green-600" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -572,7 +463,7 @@ export default function TeacherManagement({ onNavigateToUserManagement }: Teache
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center justify-between">
                             <span className="text-gray-600">Sĩ số:</span>
-                            <span className="text-gray-900">{classItem.totalStudents}/{classItem.maxStudents}</span>
+                            <span className="text-gray-900">{classItem.totalStudents}{' / '}{classItem.maxStudents}</span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-gray-600">Phòng:</span>
@@ -648,9 +539,6 @@ function TeacherFormView({
       gender: 'male',
       address: '',
       bio: '',
-      ieltsScore: undefined,
-      toeicScore: undefined,
-      toeflScore: undefined,
       certificates: [],
       specialization: [],
       joinDate: '', // Empty for new teacher, will be filled by user
@@ -923,140 +811,11 @@ function TeacherFormView({
             </div>
           </div>
 
-          {/* Bằng cấp */}
+          {/* Chứng chỉ */}
           <div>
-            <h2 className="text-gray-900 mb-4">Bằng cấp & Chứng chỉ</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div>
-                <label className="block text-gray-700 mb-2">IELTS</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  max="9"
-                  value={formData.ieltsScore || ''}
-                  onChange={(e) => setFormData({ ...formData, ieltsScore: e.target.value ? parseFloat(e.target.value) : undefined })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 mb-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  placeholder="VD: 8.5"
-                />
-                {/* Upload PDF */}
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Minh chứng (PDF)</label>
-                  {formData.ieltsProof ? (
-                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                      <FileText className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-green-700 flex-1">{formData.ieltsProof.fileName}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveProof('ielts')}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex items-center justify-center gap-2 p-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-                      <Upload className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">Upload PDF</span>
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={(e) => handleFileUpload('ielts', e.target.files?.[0] || null)}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">TOEIC</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="990"
-                  value={formData.toeicScore || ''}
-                  onChange={(e) => setFormData({ ...formData, toeicScore: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 mb-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  placeholder="VD: 990"
-                />
-                {/* Upload PDF */}
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Minh chứng (PDF)</label>
-                  {formData.toeicProof ? (
-                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                      <FileText className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-green-700 flex-1">{formData.toeicProof.fileName}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveProof('toeic')}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex items-center justify-center gap-2 p-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-                      <Upload className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">Upload PDF</span>
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={(e) => handleFileUpload('toeic', e.target.files?.[0] || null)}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 mb-2">TOEFL</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="120"
-                  value={formData.toeflScore || ''}
-                  onChange={(e) => setFormData({ ...formData, toeflScore: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 mb-2"
-                  style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
-                  placeholder="VD: 115"
-                />
-                {/* Upload PDF */}
-                <div>
-                  <label className="text-sm text-gray-600 mb-1 block">Minh chứng (PDF)</label>
-                  {formData.toeflProof ? (
-                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                      <FileText className="w-4 h-4 text-green-600" />
-                      <span className="text-sm text-green-700 flex-1">{formData.toeflProof.fileName}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveProof('toefl')}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex items-center justify-center gap-2 p-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-                      <Upload className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">Upload PDF</span>
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        onChange={(e) => handleFileUpload('toefl', e.target.files?.[0] || null)}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-            </div>
-
+            <h2 className="text-gray-900 mb-4">Chứng chỉ</h2>
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Chứng chỉ khác</label>
+              <label className="block text-gray-700 mb-2">Danh sách chng chỉ</label>
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"

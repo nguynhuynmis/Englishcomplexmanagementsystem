@@ -41,7 +41,7 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
         const classesResponse = await classesAPI.getAll();
         const allClasses = classesResponse.classes || [];
         const myClasses = allClasses.filter((c: any) => 
-          c.teacher === user.fullName && c.status === 'active'
+          c.teacher === user.fullname && c.status === 'active'
         );
         setTeacherClasses(myClasses);
         
@@ -63,7 +63,7 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
         setTodayStr(todayString);
         
         const todayFiltered = allSchedules.filter((s: any) => 
-          s.teacher === user.fullName && s.date === todayString
+          s.teacher === user.fullname && s.date === todayString
         );
         setTodaySchedules(todayFiltered);
         
@@ -81,7 +81,7 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
         
         const weekFiltered = allSchedules.filter((s: any) => {
           const scheduleDate = new Date(s.date);
-          return s.teacher === user.fullName && 
+          return s.teacher === user.fullname && 
                  scheduleDate >= weekStart && 
                  scheduleDate <= weekEnd;
         });
@@ -124,7 +124,7 @@ export default function TeacherDashboard({ user }: TeacherDashboardProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-gray-900">Xin chào, {user.fullName}!</h1>
+        <h1 className="text-gray-900">Xin chào, {user.fullname || user.username}!</h1>
         <p className="text-gray-600">
           {teacherData?.campus === 'CS001' ? 'Cơ sở Long Biên' : 'Cơ sở Hai Bà Trưng'} · Giáo viên
         </p>
