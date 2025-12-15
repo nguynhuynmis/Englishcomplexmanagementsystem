@@ -2540,9 +2540,14 @@ app.get("/make-server-e2861589/feedback", async (c) => {
   try {
     console.log('💬 [Server] GET /feedback - Start');
     
+    // ✅ Join with users table to get responder's name
     const { data: feedbacks, error } = await supabase
       .from('feedbacks')
-      .select('*')
+      .select(`
+        *,
+        sender:id_user(full_name),
+        responder:responded_by(full_name)
+      `)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
@@ -2552,13 +2557,15 @@ app.get("/make-server-e2861589/feedback", async (c) => {
     // Transform to match frontend format
     const transformed = feedbacks?.map(f => ({
       id: f.id_feedback,
-      sender: f.sender_name || 'Người dùng',
+      sender: f.sender?.full_name || f.sender_name || 'Người dùng',
       senderRole: f.sender_role || 'student',
       type: f.type || 'general',
       content: f.content || '',
       status: f.status || 'pending',
       date: new Date(f.created_at).toLocaleDateString('vi-VN'),
-      reply: f.reply || null
+      reply: f.response || null, // ✅ Fixed: use 'response' column
+      replied_by: f.responder?.full_name || null, // ✅ Added: responder name
+      replied_at: f.responded_at || null
     })) || [];
     
     return c.json({ feedbacks: transformed });
@@ -2623,18 +2630,42 @@ app.put("/make-server-e2861589/feedback/:id", async (c) => {
     if (feedbackData.response !== undefined) {
       updateData.response = feedbackData.response;
       updateData.responded_at = new Date().toISOString();
+      
+      // ✅ Get user ID from auth token to set responder
+      const authHeader = c.req.header('Authorization');
+      if (authHeader) {
+        const token = authHeader.split(' ')[1];
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user) {
+          updateData.responded_by = user.id;
+        }
+      }
     } else if (feedbackData.reply !== undefined) {
       updateData.response = feedbackData.reply;
       updateData.responded_at = new Date().toISOString();
+      
+      // ✅ Get user ID from auth token to set responder
+      const authHeader = c.req.header('Authorization');
+      if (authHeader) {
+        const token = authHeader.split(' ')[1];
+        const { data: { user } } = await supabase.auth.getUser(token);
+        if (user) {
+          updateData.responded_by = user.id;
+        }
+      }
     }
     
     if (feedbackData.status !== undefined) updateData.status = feedbackData.status;
     
+    // ✅ Join with users to get responder name
     const { data: feedback, error } = await supabase
       .from('feedbacks')
       .update(updateData)
       .eq('id_feedback', id)
-      .select()
+      .select(`
+        *,
+        responder:responded_by(full_name)
+      `)
       .single();
     
     if (error) throw error;
@@ -2649,6 +2680,7 @@ app.put("/make-server-e2861589/feedback/:id", async (c) => {
       status: feedback.status,
       date: new Date(feedback.created_at).toLocaleDateString('vi-VN'),
       reply: feedback.response, // ✅ Map 'response' column to 'reply' field
+      replied_by: feedback.responder?.full_name || null,
       replied_at: feedback.responded_at
     });
   } catch (error) {

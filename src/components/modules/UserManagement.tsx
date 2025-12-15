@@ -337,33 +337,6 @@ export default function UserManagement({ initialRole, initialViewMode }: UserMan
           <h1 className="text-gray-900 text-[16px]">Quản lý người dùng</h1>
           <div className="flex items-center gap-3">
             <button
-              onClick={async () => {
-                if (window.confirm('Migrate tất cả users cũ để tạo mã HV/GV? (Chỉ cần chạy 1 lần)')) {
-                  try {
-                    setLoading(true);
-                    const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-e2861589/migrate-user-records`, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${publicAnonKey}`,
-                        'Content-Type': 'application/json'
-                      }
-                    });
-                    const result = await response.json();
-                    alert(`✅ Migration hoàn tất!\n\n${result.message}\n\nTổng users: ${result.totalUsers}\nĐã tạo ${result.studentsCreated} học viên\nĐã tạo ${result.teachersCreated} giáo viên\nBỏ qua: ${result.skipped}`);
-                    loadData(); // Reload to see new codes
-                  } catch (err: any) {
-                    alert('❌ Lỗi migration: ' + err.message);
-                  } finally {
-                    setLoading(false);
-                  }
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600"
-              title="Tạo mã HV/GV cho users cũ"
-            >
-              🔄 Migrate Data
-            </button>
-            <button
               onClick={handleCreate}
               className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:opacity-90"
               style={{ backgroundColor: 'var(--brand-primary)' }}
