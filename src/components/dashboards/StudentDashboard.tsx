@@ -15,9 +15,72 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
   const [thisWeekSchedules, setThisWeekSchedules] = useState<any[]>([]);
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
   const [recentGrades, setRecentGrades] = useState<any[]>([]);
+  const [allGrades, setAllGrades] = useState<any[]>([]); // ✅ Store all scores from scores table
+  const [allSchedules, setAllSchedules] = useState<any[]>([]); // ✅ Store all schedules
   const [pendingAssignments, setPendingAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [todayStr, setTodayStr] = useState('');
+  
+  // ✅ Calculate average score from scores table (average_score column)
+  const currentAverage = allGrades.length > 0 
+    ? allGrades.reduce((sum, grade) => sum + (grade.average || 0), 0) / allGrades.length
+    : 0;
+
+  // ✅ Calculate attendance rate from scores table (attendance_score column)
+  // attendance_score is expected to be 0-100 (percentage) or 0-1 (decimal)
+  const attendanceRate = allGrades.length > 0
+    ? (() => {
+        const avgAttendance = allGrades.reduce((sum, grade) => {
+          const attendance = grade.attendance?.attendedSessions || 0;
+          return sum + attendance;
+        }, 0) / allGrades.length;
+        
+        // If attendance is stored as decimal (0-1), convert to percentage
+        // If already percentage (0-100), keep as is
+        return avgAttendance <= 1 ? Math.round(avgAttendance * 100) : Math.round(avgAttendance);
+      })()
+    : 0;
+
+  // ✅ Generate score progress data from scores (group by month)
+  const scoreProgress = (() => {
+    if (allGrades.length === 0) return [];
+
+    // Group grades by month
+    const gradesByMonth: Record<string, any[]> = {};
+    allGrades.forEach(grade => {
+      const date = new Date(grade.updatedAt || new Date());
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!gradesByMonth[monthKey]) {
+        gradesByMonth[monthKey] = [];
+      }
+      gradesByMonth[monthKey].push(grade);
+    });
+
+    // Calculate average for each month
+    return Object.entries(gradesByMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6) // Last 6 months
+      .map(([monthKey, grades]) => {
+        const [year, month] = monthKey.split('-');
+        const monthName = `T${parseInt(month)}`;
+        
+        // Calculate average overall score for the month
+        const avgOverall = grades.reduce((sum, g) => sum + (g.average || 0), 0) / grades.length;
+        
+        // Use midterm and final scores to represent progress
+        // Since new schema doesn't have individual skills, we'll use overall scores
+        const midtermAvg = grades.reduce((sum, g) => sum + (g.midterm?.overall || 0), 0) / grades.length;
+        const finalAvg = grades.reduce((sum, g) => sum + (g.final?.overall || 0), 0) / grades.length;
+        
+        return {
+          month: monthName,
+          speaking: Math.round(avgOverall * 10) / 10,
+          writing: Math.round(midtermAvg * 10) / 10,
+          listening: Math.round(finalAvg * 10) / 10,
+          reading: Math.round(avgOverall * 10) / 10,
+        };
+      });
+  })();
   
   useEffect(() => {
     loadDashboardData();
@@ -34,7 +97,8 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
       
       // Load schedules
       const schedulesResponse = await schedulesAPI.getAll();
-      const allSchedules = schedulesResponse.schedules || [];
+      const allSchedulesData = schedulesResponse.schedules || [];
+      setAllSchedules(allSchedulesData); // ✅ Store all schedules
       
       // Filter schedules for this week
       const today = new Date();
@@ -43,7 +107,7 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6); // Sunday
       
-      const filtered = allSchedules.filter((s: any) => {
+      const filtered = allSchedulesData.filter((s: any) => {
         const scheduleDate = new Date(s.date);
         return scheduleDate >= weekStart && scheduleDate <= weekEnd;
       });
@@ -52,17 +116,36 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
       // Filter today's schedules
       const todayStr = today.toISOString().split('T')[0];
       setTodayStr(todayStr);
-      const todayFiltered = allSchedules.filter((s: any) => s.date === todayStr);
+      const todayFiltered = allSchedulesData.filter((s: any) => s.date === todayStr);
       setTodaySchedules(todayFiltered);
       
-      // Load recent grades
+      // ✅ Load scores from scores table (via /grades API)
       if (user.studentId) {
         const gradesResponse = await gradesAPI.getAll();
         const studentGrades = (gradesResponse.grades || [])
-          .filter((g: any) => g.studentId === user.studentId)
-          .sort((a: any, b: any) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
+          .filter((g: any) => g.studentId === user.studentId);
+        
+        console.log('📊 [StudentDashboard] Loaded scores for student:', user.studentId, studentGrades);
+        console.log('📊 [StudentDashboard] All grades response:', gradesResponse);
+        console.log('📊 [StudentDashboard] User object:', user);
+        console.log('📊 [StudentDashboard] Filtered student grades:', studentGrades);
+        
+        setAllGrades(studentGrades); // ✅ Store all scores
+        
+        // Get recent 5 for display
+        const recent = [...studentGrades]
+          .sort((a: any, b: any) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
           .slice(0, 5);
-        setRecentGrades(studentGrades);
+        setRecentGrades(recent);
+        
+        // Debug calculated values
+        if (studentGrades.length > 0) {
+          const avgCalc = studentGrades.reduce((sum: number, grade: any) => sum + (grade.average || 0), 0) / studentGrades.length;
+          console.log('📊 [StudentDashboard] Calculated average:', avgCalc);
+          console.log('📊 [StudentDashboard] Sample grade object:', studentGrades[0]);
+        } else {
+          console.warn('⚠️ [StudentDashboard] No grades found for student:', user.studentId);
+        }
       }
       
       // Load pending assignments
@@ -93,18 +176,6 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
     { id: '2', title: 'IELTS Writing Band 8+ Samples', type: 'Tài liệu bổ sung', uploadDate: '2025-11-28' },
     { id: '3', title: 'Vocabulary List - Unit 3', type: 'Slide', uploadDate: '2025-11-27' },
   ];
-
-  // Mock data điểm số theo thời gian
-  const scoreProgress = [
-    { month: 'T9', speaking: 6.5, writing: 6.0, listening: 7.0, reading: 6.5 },
-    { month: 'T10', speaking: 7.0, writing: 6.5, listening: 7.5, reading: 7.0 },
-    { month: 'T11', speaking: 7.5, writing: 7.0, listening: 8.0, reading: 7.5 },
-    { month: 'T12', speaking: 8.0, writing: 7.5, listening: 8.5, reading: 8.0 },
-  ];
-
-  // Mock điểm trung bình
-  const currentAverage = 7.75;
-  const attendanceRate = 95;
 
   return (
     <div className="space-y-6">

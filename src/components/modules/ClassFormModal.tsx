@@ -7,8 +7,8 @@ interface Class {
   name: string;
   campus: string;
   level: string;
-  capacity: number;
-  currentStudents: number;
+  maxStudents: number; // Changed from capacity to match ClassManagement
+  totalStudents: number; // Changed from currentStudents to match ClassManagement
   teacher: string;
   status: 'active' | 'completed' | 'inactive';
   schedule: string;
@@ -44,8 +44,8 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
       name: '',
       campus: 'Cơ sở Long Biên',
       level: 'Beginner',
-      capacity: 20,
-      currentStudents: 0,
+      maxStudents: 20,
+      totalStudents: 0,
       teacher: '',
       status: 'inactive',
       schedule: '',
@@ -249,8 +249,8 @@ export default function ClassFormModal({ classItem, onClose, onSave }: ClassForm
                   type="number"
                   min="1"
                   max="50"
-                  value={formData.capacity}
-                  onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) || 0 })}
+                  value={formData.maxStudents}
+                  onChange={(e) => setFormData({ ...formData, maxStudents: parseInt(e.target.value) || 0 })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': 'var(--brand-primary)' } as React.CSSProperties}
                   required

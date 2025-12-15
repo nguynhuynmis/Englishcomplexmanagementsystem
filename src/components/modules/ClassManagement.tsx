@@ -280,11 +280,11 @@ export default function ClassManagement({ user }: ClassManagementProps) {
               console.log('[ClassManagement] Saving class:', classItem);
               if (editingClass) {
                 await classesAPI.update(classItem.id, classItem);
-                setClasses(classes.map(c => c.id === classItem.id ? classItem : c));
               } else {
-                const response = await classesAPI.create(classItem);
-                setClasses([...classes, response.class]);
+                await classesAPI.create(classItem);
               }
+              // Reload data from server to get updated status and other fields
+              await loadData();
               setShowModal(false);
             } catch (err: any) {
               console.error('[ClassManagement] Save error:', err);

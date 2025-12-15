@@ -65,6 +65,156 @@ app.use(
 // HELPER FUNCTIONS
 // ========================================
 
+/**
+ * Map frontend status to database status
+ * Frontend: 'active', 'completed', 'inactive'
+ * Database: 'ongoing', 'completed', 'scheduled', 'cancelled'
+ */
+function mapStatusToDb(frontendStatus: string): string {
+  switch (frontendStatus) {
+    case 'active':
+      return 'ongoing';
+    case 'completed':
+      return 'completed';
+    case 'inactive':
+      return 'scheduled';
+    default:
+      return 'scheduled';
+  }
+}
+
+/**
+ * Map database status to frontend status
+ * Database: 'ongoing', 'completed', 'scheduled', 'cancelled'
+ * Frontend: 'active', 'completed', 'inactive'
+ */
+function mapStatusToFrontend(dbStatus: string): string {
+  switch (dbStatus) {
+    case 'ongoing':
+      return 'active';
+    case 'completed':
+      return 'completed';
+    case 'scheduled':
+      return 'inactive';
+    case 'cancelled':
+      return 'inactive';
+    default:
+      return 'inactive';
+  }
+}
+
+/**
+ * Generate batch IDs for schedule table
+ * @param count - Number of IDs to generate
+ * @returns Array of schedule IDs (e.g., ['TKB001', 'TKB002', ...])
+ */
+async function generateScheduleIds(count: number): Promise<string[]> {
+  if (count === 0) return [];
+  
+  const prefix = 'TKB';
+  
+  // Get current max ID
+  const { data, error } = await supabase
+    .from('schedule')
+    .select('id_schedule')
+    .order('id_schedule', { ascending: false })
+    .limit(1);
+  
+  let nextNumber = 1;
+  if (data && data.length > 0) {
+    const lastId = data[0].id_schedule;
+    const numberPart = lastId.replace(/\D/g, '');
+    nextNumber = parseInt(numberPart || '0') + 1;
+  }
+  
+  // Generate array of IDs
+  const ids: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const paddedNumber = String(nextNumber + i).padStart(3, '0');
+    ids.push(`${prefix}${paddedNumber}`);
+  }
+  
+  return ids;
+}
+
+/**
+ * Generate schedule records from schedule string
+ * @param scheduleStr - Format: "Thứ 2: 18:00-20:00, Thứ 4: 18:00-20:00"
+ * @param classId - Class ID
+ * @param weeksAhead - Number of weeks to generate (default: 8)
+ * @returns Array of schedule records to insert
+ */
+async function generateScheduleRecords(scheduleStr: string, classId: string, weeksAhead: number = 8) {
+  if (!scheduleStr || scheduleStr.trim() === '') return [];
+  
+  // Map Vietnamese day names to JS day numbers (0=Sunday, 1=Monday, etc.)
+  const dayMap: Record<string, number> = {
+    'Chủ nhật': 0,
+    'Chủ Nhật': 0,
+    'Thứ 2': 1,
+    'Thứ 3': 2,
+    'Thứ 4': 3,
+    'Thứ 5': 4,
+    'Thứ 6': 5,
+    'Thứ 7': 6,
+  };
+  
+  const schedules: any[] = [];
+  const today = new Date();
+  
+  // Parse schedule string
+  const items = scheduleStr.split(',').map(s => s.trim());
+  
+  for (const item of items) {
+    // ✅ Fix: Only split at FIRST colon to avoid splitting time ranges
+    const colonIndex = item.indexOf(':');
+    if (colonIndex === -1) continue;
+    
+    const dayStr = item.substring(0, colonIndex).trim();
+    const timeRange = item.substring(colonIndex + 1).trim();
+    if (!timeRange) continue;
+    
+    const [startTime, endTime] = timeRange.split('-').map(s => s.trim());
+    const dayNum = dayMap[dayStr];
+    
+    if (dayNum === undefined) {
+      console.warn(`⚠️ Unknown day: ${dayStr}`);
+      continue;
+    }
+    
+    // Generate dates for next N weeks
+    for (let week = 0; week < weeksAhead; week++) {
+      const targetDate = new Date(today);
+      const daysUntilTarget = (dayNum - today.getDay() + 7) % 7;
+      targetDate.setDate(today.getDate() + daysUntilTarget + (week * 7));
+      
+      // Format as YYYY-MM-DD
+      const sessionDate = targetDate.toISOString().split('T')[0];
+      
+      schedules.push({
+        id_class: classId,
+        session_date: sessionDate,
+        start_time: startTime,
+        end_time: endTime,
+        topic: '',
+        required_materials: '',
+        is_cancelled: false
+      });
+    }
+  }
+  
+  // ✅ Generate batch IDs for all schedule records
+  const scheduleIds = await generateScheduleIds(schedules.length);
+  
+  // ✅ Add id_schedule to each record
+  const schedulesWithIds = schedules.map((schedule, index) => ({
+    id_schedule: scheduleIds[index],
+    ...schedule
+  }));
+  
+  return schedulesWithIds;
+}
+
 // DEPRECATED: Old ID generation functions - now using generateNextId from id-generator.tsx
 // These are kept for reference but should not be used in new code
 
@@ -140,21 +290,33 @@ app.post("/make-server-e2861589/auth/login", async (c) => {
     let studentId = null;
     
     if (roleName === 'student') {
-      const { data: student } = await supabase
+      console.log('🔍 [Server] Looking for student with id_user:', user?.id_user);
+      const { data: student, error: studentError } = await supabase
         .from('students')
-        .select('code, id_student')
+        .select('student_code, id_student')
         .eq('id_user', user?.id_user)
         .single();
-      code = student?.code;
+      
+      if (studentError) {
+        console.error('❌ [Server] Student query error:', studentError);
+      }
+      
+      code = student?.student_code;
       studentId = student?.id_student;
       console.log('📝 [Server] Student code:', code, 'ID:', studentId);
     } else if (roleName === 'teacher') {
-      const { data: teacher } = await supabase
+      console.log('🔍 [Server] Looking for teacher with id_user:', user?.id_user);
+      const { data: teacher, error: teacherError } = await supabase
         .from('teachers')
-        .select('code, id_teacher')
+        .select('teacher_code, id_teacher')
         .eq('id_user', user?.id_user)
         .single();
-      code = teacher?.code;
+      
+      if (teacherError) {
+        console.error('❌ [Server] Teacher query error:', teacherError);
+      }
+      
+      code = teacher?.teacher_code;
       teacherId = teacher?.id_teacher;
       console.log('📝 [Server] Teacher code:', code, 'ID:', teacherId);
     }
@@ -844,7 +1006,7 @@ app.get("/make-server-e2861589/teachers", async (c) => {
         specialization: t.specialize || '', // From teachers.specialize - NO CONVERSION
         experienceYears: t.experience_years || 0, // From teachers.experience_years
         certificates: t.certifications || '', // From teachers.certifications - NO CONVERSION
-        joinDate: t.start_date || '', // From teachers.start_date
+        joinDate: t.created_at?.split('T')[0] || '', // ✅ Use created_at instead of start_date
         status: account?.status === 1 ? 'active' : 'inactive', // Convert 1/0 to string
         avatar: user?.avatar_url || null
       };
@@ -1018,10 +1180,7 @@ app.put("/make-server-e2861589/teachers/:id", async (c) => {
         : (teacherData.certifications || '')
     };
     
-    // Add optional fields if provided
-    if (teacherData.joinDate) {
-      teacherUpdate.start_date = teacherData.joinDate;
-    }
+    // ✅ REMOVED: start_date field doesn't exist in teachers table
     // NOTE: id_center removed - teacher's campus is determined from their classes
     
     console.log('📦 [Server] Teacher update data:', teacherUpdate);
@@ -1210,24 +1369,14 @@ app.get("/make-server-e2861589/classes", async (c) => {
       countMap[cs.id_class] = (countMap[cs.id_class] || 0) + 1;
     });
     
-    // Get schedules
-    const { data: schedules } = await supabase
-      .from('schedule')
-      .select('*')
-      .in('id_class', classIds);
-    
-    const scheduleMap: Record<string, any[]> = {};
-    schedules?.forEach(s => {
-      if (!scheduleMap[s.id_class]) scheduleMap[s.id_class] = [];
-      scheduleMap[s.id_class].push(s);
-    });
-    
     // Transform to match frontend format
     const transformed = classes?.map(c => {
-      const classSchedules = scheduleMap[c.id_class] || [];
-      const scheduleStr = classSchedules
-        .map(s => `${s.day_of_week}: ${s.start_time}-${s.end_time}`)
-        .join(', ');
+      // ✅ Extract schedule from note field (format: "📅 Thứ 2: 18:00-20:00, Thứ 4: 18:00-20:00")
+      let scheduleStr = '';
+      if (c.note && c.note.startsWith('📅 ')) {
+        const parts = c.note.split('\n');
+        scheduleStr = parts[0].replace('📅 ', '');
+      }
       
       return {
         id: c.id_class,
@@ -1235,11 +1384,11 @@ app.get("/make-server-e2861589/classes", async (c) => {
         campus: c.centers?.name || '',
         campusId: c.id_center || '', // Add center ID for filtering
         level: c.class_levels?.name || '',
-        capacity: c.capacity,
-        currentStudents: countMap[c.id_class] || 0,
+        maxStudents: c.capacity, // Renamed to match frontend
+        totalStudents: countMap[c.id_class] || 0, // Renamed to match frontend
         teacher: c.teachers?.users?.full_name || '',
         teacherId: c.id_teacher || '', // Add teacher ID for filtering
-        status: c.status || 'inactive', // Keep string value from database ("active" or "inactive")
+        status: mapStatusToFrontend(c.status || 'scheduled'), // Map DB status to frontend status
         schedule: scheduleStr
       };
     }) || [];
@@ -1281,20 +1430,26 @@ app.post("/make-server-e2861589/classes", async (c) => {
       .eq('users.full_name', classData.teacher)
       .single();
     
-    // Convert status from string to integer if needed
-    const statusInt = classData.status === 'active' || classData.status === 1 ? 1 : 0;
+    // Map frontend status to database status
+    const dbStatus = mapStatusToDb(classData.status || 'inactive');
+    
+    // ✅ Save schedule string into note field
+    const noteWithSchedule = classData.schedule 
+      ? `📅 ${classData.schedule}${classData.note ? '\n' + classData.note : ''}`
+      : (classData.note || '');
     
     // Create class with generated ID
     const { data: newClass, error } = await supabase
       .from('class')
       .insert({
         id_class: classId,
+        class_code: classId, // Use same ID for class_code (e.g., LH001)
         id_center: center?.id_center,
         id_level: level?.id_level,
         name_class: classData.name,
-        status: statusInt,
-        capacity: classData.capacity,
-        note: classData.note || '',
+        status: dbStatus,
+        capacity: classData.maxStudents || classData.capacity || 20, // Support both field names
+        note: noteWithSchedule, // ✅ Store schedule in note field
         id_teacher: teacher?.id_teacher
       })
       .select()
@@ -1302,21 +1457,23 @@ app.post("/make-server-e2861589/classes", async (c) => {
     
     if (error) throw error;
     
-    // Parse and create schedules
+    console.log('✅ [CREATE CLASS] Class created with schedule in note:', noteWithSchedule);
+    
+    // ✅ Auto-generate schedule records for next 8 weeks
     if (classData.schedule) {
-      const schedules = classData.schedule.split(', ');
-      for (const scheduleStr of schedules) {
-        const [day, time] = scheduleStr.split(': ');
-        const [startTime, endTime] = time.split('-');
-        
-        await supabase
+      const scheduleRecords = await generateScheduleRecords(classData.schedule, classId, 8);
+      console.log(`📅 [CREATE CLASS] Generating ${scheduleRecords.length} schedule records for next 8 weeks...`);
+      
+      if (scheduleRecords.length > 0) {
+        const { error: scheduleError } = await supabase
           .from('schedule')
-          .insert({
-            id_class: newClass.id_class,
-            start_time: startTime,
-            end_time: endTime,
-            session_date: new Date().toISOString().split('T')[0]
-          });
+          .insert(scheduleRecords);
+        
+        if (scheduleError) {
+          console.error('❌ [CREATE CLASS] Schedule generation error:', scheduleError);
+        } else {
+          console.log('✅ [CREATE CLASS] Schedule records created successfully');
+        }
       }
     }
     
@@ -1354,8 +1511,13 @@ app.put("/make-server-e2861589/classes/:id", async (c) => {
       .eq('user.full_name', classData.teacher)
       .single();
     
-    // Convert status from string to integer if needed
-    const statusInt = classData.status === 'active' || classData.status === 1 ? 1 : 0;
+    // Map frontend status to database status
+    const dbStatus = mapStatusToDb(classData.status || 'inactive');
+    
+    // ✅ Save schedule string into note field
+    const noteWithSchedule = classData.schedule 
+      ? `📅 ${classData.schedule}${classData.note ? '\n' + classData.note : ''}`
+      : (classData.note || '');
     
     // Update class (keep same id_class)
     await supabase
@@ -1364,30 +1526,38 @@ app.put("/make-server-e2861589/classes/:id", async (c) => {
         id_center: center?.id_center,
         id_level: level?.id_level,
         name_class: classData.name,
-        status: statusInt,
-        capacity: classData.capacity,
-        note: classData.note || '',
+        status: dbStatus,
+        capacity: classData.maxStudents || classData.capacity || 20, // Support both field names
+        note: noteWithSchedule, // ✅ Store schedule in note field
         id_teacher: teacher?.id_teacher
       })
       .eq('id_class', id);
     
-    // Delete old schedules and create new ones
-    await supabase.from('schedule').delete().eq('id_class', id);
+    console.log('✅ [UPDATE CLASS] Class updated with schedule in note:', noteWithSchedule);
     
+    // ✅ Regenerate schedule records: delete old ones and create new ones
     if (classData.schedule) {
-      const schedules = classData.schedule.split(', ');
-      for (const scheduleStr of schedules) {
-        const [day, time] = scheduleStr.split(': ');
-        const [startTime, endTime] = time.split('-');
-        
-        await supabase
+      // Delete existing auto-generated schedules (keep only future sessions)
+      await supabase
+        .from('schedule')
+        .delete()
+        .eq('id_class', id)
+        .gte('session_date', new Date().toISOString().split('T')[0]); // Only delete future schedules
+      
+      // Generate new schedules
+      const scheduleRecords = await generateScheduleRecords(classData.schedule, id, 8);
+      console.log(`📅 [UPDATE CLASS] Regenerating ${scheduleRecords.length} schedule records...`);
+      
+      if (scheduleRecords.length > 0) {
+        const { error: scheduleError } = await supabase
           .from('schedule')
-          .insert({
-            id_class: id, // Use original id, not newClassId
-            start_time: startTime,
-            end_time: endTime,
-            session_date: new Date().toISOString().split('T')[0]
-          });
+          .insert(scheduleRecords);
+        
+        if (scheduleError) {
+          console.error('❌ [UPDATE CLASS] Schedule regeneration error:', scheduleError);
+        } else {
+          console.log('✅ [UPDATE CLASS] Schedule records regenerated successfully');
+        }
       }
     }
     
@@ -1403,6 +1573,7 @@ app.delete("/make-server-e2861589/classes/:id", async (c) => {
     const id = c.req.param('id');
     
     // Delete related records first
+    // ✅ Keep schedule deletion for specific session schedules (if any)
     await supabase.from('schedule').delete().eq('id_class', id);
     await supabase.from('class_students').delete().eq('id_class', id);
     
@@ -1516,31 +1687,63 @@ app.post("/make-server-e2861589/classes/:classId/enroll", async (c) => {
     let nextNumber = 1;
     if (existingEnrollmentIds && existingEnrollmentIds.length > 0) {
       const lastId = existingEnrollmentIds[0].id;
-      const lastNumber = parseInt(lastId.replace('GD', ''));
-      nextNumber = lastNumber + 1;
+      console.log('🔍 [Server] Last enrollment ID:', lastId);
+      
+      // Extract number from ID (e.g., "GD001" → 1)
+      const numberPart = lastId?.replace(/\D/g, ''); // Remove all non-digits
+      const lastNumber = parseInt(numberPart || '0');
+      
+      // Validate: if NaN or invalid, start from 1
+      if (!isNaN(lastNumber) && lastNumber > 0) {
+        nextNumber = lastNumber + 1;
+      } else {
+        console.warn('⚠️ [Server] Invalid last ID format, starting from 1');
+        nextNumber = 1;
+      }
     }
     
     console.log('🆔 [Server] Generating enrollment IDs starting from GD' + String(nextNumber).padStart(3, '0'));
     
-    // Step 5: Insert enrollments with generated IDs
-    const enrollmentRecords = studentIds.map((studentId, index) => ({
-      id: 'GD' + String(nextNumber + index).padStart(3, '0'), // GD001, GD002, etc.
-      id_class: classId,
-      id_students: studentId,
-      joined_date: new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-    }));
-    
-    console.log('📝 [Server] Enrollment records to insert:', enrollmentRecords);
-    
-    const { data: insertedRecords, error: insertError } = await supabase
-      .from('class_students')
-      .insert(enrollmentRecords)
-      .select();
-    
-    if (insertError) {
-      console.error('❌ [Server] Error inserting enrollments:', insertError);
-      throw insertError;
-    }
+    // Step 5: Insert enrollments with generated IDs (with retry for race conditions)
+    const insertedRecords = await retryWithBackoff(async () => {
+      // Re-fetch latest ID in case of concurrent requests
+      const { data: latestIds } = await supabase
+        .from('class_students')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1);
+      
+      let currentNextNumber = nextNumber;
+      if (latestIds && latestIds.length > 0) {
+        const latestId = latestIds[0].id;
+        const latestNumberPart = latestId?.replace(/\D/g, '');
+        const latestNumber = parseInt(latestNumberPart || '0');
+        if (!isNaN(latestNumber) && latestNumber >= currentNextNumber) {
+          currentNextNumber = latestNumber + 1;
+        }
+      }
+      
+      const enrollmentRecords = studentIds.map((studentId, index) => ({
+        id: 'GD' + String(currentNextNumber + index).padStart(3, '0'), // GD001, GD002, etc.
+        id_class: classId,
+        id_students: studentId,
+        joined_date: new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+      }));
+      
+      console.log('📝 [Server] Enrollment records to insert:', enrollmentRecords);
+      
+      const { data, error } = await supabase
+        .from('class_students')
+        .insert(enrollmentRecords)
+        .select();
+      
+      if (error) {
+        console.error('❌ [Server] Error inserting enrollments:', error);
+        throw error;
+      }
+      
+      return data;
+    });
     
     console.log(`✅ [Server] Successfully enrolled ${insertedRecords?.length || 0} students to class ${classId}`);
     
@@ -1630,7 +1833,7 @@ app.get("/make-server-e2861589/schedules", async (c) => {
       .from('schedule')
       .select(`
         *,
-        class:id_class (
+        class!inner (
           id_class,
           name_class,
           id_teacher,
@@ -1656,15 +1859,19 @@ app.get("/make-server-e2861589/schedules", async (c) => {
       .map(s => s.class?.id_teacher)
       .filter(Boolean);
     
-    const { data: teachers } = await supabase
-      .from('teachers')
-      .select(`
-        id_teacher,
-        user:id_user (
-          full_name
-        )
-      `)
-      .in('id_teacher', teacherIds);
+    let teachers: any[] = [];
+    if (teacherIds.length > 0) {
+      const { data } = await supabase
+        .from('teachers')
+        .select(`
+          id_teacher,
+          users:id_user (
+            full_name
+          )
+        `)
+        .in('id_teacher', teacherIds);
+      teachers = data || [];
+    }
     
     // Transform to match frontend format - USING ACTUAL SCHEMA
     const transformed = schedules.map(s => ({
@@ -1676,7 +1883,7 @@ app.get("/make-server-e2861589/schedules", async (c) => {
       startTime: s.start_time,
       endTime: s.end_time,
       room: '', // No room in schedules table, placeholder
-      teacher: teachers?.find(t => t.id_teacher === s.class?.id_teacher)?.user?.full_name || '',
+      teacher: teachers?.find(t => t.id_teacher === s.class?.id_teacher)?.users?.full_name || '',
       teacherId: s.class?.id_teacher?.toString() || '', // FIXED: added teacherId
       campus: s.class?.centers?.name || '',
       level: s.class?.class_levels?.name || '',
@@ -1839,9 +2046,10 @@ app.post("/make-server-e2861589/grades/generate-samples", async (c) => {
   }
 });
 
+// GET all grades - Schema mới: mỗi học viên CHỈ có 1 record với midterm_score, final_score, average_score
 app.get("/make-server-e2861589/grades", async (c) => {
   try {
-    console.log('📊 [Server] GET /grades - Start');
+    console.log('📊 [Server] GET /grades - Start (NEW SCHEMA: midterm_score, final_score, average_score)');
     
     // Get all scores with student and class info
     const { data: scores, error: scoresError } = await supabase
@@ -1873,43 +2081,41 @@ app.get("/make-server-e2861589/grades", async (c) => {
       return c.json({ grades: [] });
     }
     
-    // Transform to match frontend format
-    const transformed = scores.map(s => ({
-      id: s.id_score,
-      studentId: s.id_student, // Fixed: Use id_student (FK column in scores table)
-      studentName: s.students?.user?.full_name || '',
-      classId: s.id_class,
-      className: s.class?.name_class || '',
-      examType: s.exam_type || 'midterm',
-      examDate: s.exam_date || new Date().toISOString().split('T')[0],
-      // Attendance object structure (placeholder - not in scores table)
+    // Transform to frontend format
+    // Schema mới: 1 record = 1 student, không cần grouping như cũ
+    const transformed = scores.map(score => ({
+      id: score.id_score,
+      studentId: score.id_students,
+      studentName: score.students?.user?.full_name || '',
+      classId: score.id_class,
+      className: score.class?.name_class || '',
+      // Attendance object structure
       attendance: {
-        totalSessions: 0, // TODO: Get from class schedule
-        attendedSessions: 0, // TODO: Get from attendance table
-        absentSessions: 0 // TODO: Calculate from class schedule
+        totalSessions: 0,
+        attendedSessions: Math.round(score.attendance_score || 0),
+        absentSessions: 0
       },
-      // Midterm IELTS scores - map from actual score columns
+      // Midterm - Schema mới chỉ có 1 điểm tổng (không có skills riêng)
       midterm: {
-        reading: s.exam_type === 'midterm' ? (s.score_reading || 0) : 0,
-        listening: s.exam_type === 'midterm' ? (s.score_listening || 0) : 0,
-        writing: s.exam_type === 'midterm' ? (s.score_writing || 0) : 0,
-        speaking: s.exam_type === 'midterm' ? (s.score_speaking || 0) : 0,
-        overall: s.exam_type === 'midterm' ? (s.overall_score || 0) : 0
+        reading: 0,
+        listening: 0,
+        writing: 0,
+        speaking: 0,
+        overall: score.midterm_score || 0
       },
-      // Final IELTS scores - map from actual score columns
+      // Final - Schema mới chỉ có 1 điểm tổng (không có skills riêng)
       final: {
-        reading: s.exam_type === 'final' ? (s.score_reading || 0) : 0,
-        listening: s.exam_type === 'final' ? (s.score_listening || 0) : 0,
-        writing: s.exam_type === 'final' ? (s.score_writing || 0) : 0,
-        speaking: s.exam_type === 'final' ? (s.score_speaking || 0) : 0,
-        overall: s.exam_type === 'final' ? (s.overall_score || 0) : 0
+        reading: 0,
+        listening: 0,
+        writing: 0,
+        speaking: 0,
+        overall: score.final_score || 0
       },
-      average: s.overall_score || 0, // Use overall_score as average
-      updatedAt: s.updated_at
+      average: score.average_score || 0,
+      updatedAt: score.updated_at
     }));
     
     console.log('✅ [Server] GET /grades - Success, returning', transformed.length, 'records');
-    // Return in object format for consistency with other APIs
     return c.json({ grades: transformed });
   } catch (error) {
     console.error("❌ [Server] Get grades error:", error);
@@ -1917,10 +2123,10 @@ app.get("/make-server-e2861589/grades", async (c) => {
   }
 });
 
-// Get grades grouped by class with class averages
+// Get grades grouped by class with class averages - Schema mới: 1 record per student
 app.get("/make-server-e2861589/grades/by-class", async (c) => {
   try {
-    console.log('📊 [Server] GET /grades/by-class - Start');
+    console.log('📊 [Server] GET /grades/by-class - Start (NEW SCHEMA)');
     
     const { data: scores, error: scoresError } = await supabase
       .from('scores')
@@ -1956,30 +2162,44 @@ app.get("/make-server-e2861589/grades/by-class", async (c) => {
     // Create a map for quick lookup
     const userMap = new Map(users?.map(u => [u.id_user, u.full_name]) || []);
     
-    const groupedByClass = scores.reduce((acc, score) => {
-      const classId = score.id_class;
-      if (!acc[classId]) {
-        acc[classId] = {
-          classId: classId,
-          className: score.class?.name_class || '',
-          classStatus: score.class?.status || 'active',
+    // Schema mới: mỗi score record đã có sẵn midterm_score, final_score, average_score
+    // Không cần grouping phức tạp như cũ
+    const studentScores = scores.map(score => ({
+      id: score.id_score,
+      classId: score.id_class,
+      className: score.class?.name_class || '',
+      classStatus: score.class?.status || 'active',
+      studentId: score.id_students,
+      studentName: userMap.get(score.students.id_user) || 'N/A',
+      midtermScore: score.midterm_score || 0,
+      finalScore: score.final_score || 0,
+      averageScore: score.average_score || 0,
+      attendanceScore: score.attendance_score || 0
+    }));
+    
+    // Group students by class
+    const groupedByClass: Record<string, any> = {};
+    
+    for (const student of studentScores) {
+      if (!groupedByClass[student.classId]) {
+        groupedByClass[student.classId] = {
+          classId: student.classId,
+          className: student.className,
+          classStatus: student.classStatus,
           students: []
         };
       }
       
-      acc[classId].students.push({
-        id: score.id_score,
-        studentId: score.id_student,
-        studentName: userMap.get(score.students.id_user) || 'N/A',
-        examType: score.exam_type,
-        midtermScore: score.exam_type === 'midterm' ? (score.overall_score || 0) : 0,
-        finalScore: score.exam_type === 'final' ? (score.overall_score || 0) : 0,
-        averageScore: score.overall_score || 0,
-        attendanceScore: 0 // Attendance not in scores table
+      groupedByClass[student.classId].students.push({
+        id: student.id,
+        studentId: student.studentId,
+        studentName: student.studentName,
+        midtermScore: student.midtermScore,
+        finalScore: student.finalScore,
+        averageScore: student.averageScore,
+        attendanceScore: student.attendanceScore
       });
-      
-      return acc;
-    }, {} as Record<string, any>);
+    }
     
     const classSummaries = Object.values(groupedByClass).map((classData: any) => {
       const totalStudents = classData.students.length;
@@ -2007,125 +2227,143 @@ app.get("/make-server-e2861589/grades/by-class", async (c) => {
   }
 });
 
+// POST create new grade - Schema mới: 1 record với midterm_score, final_score, average_score
 app.post("/make-server-e2861589/grades", async (c) => {
   try {
     const gradeData = await c.req.json();
     
+    console.log('📝 [Server] POST /grades - Creating grade (NEW SCHEMA)');
+    console.log('📄 [Server] Grade data:', gradeData);
+    
     // Extract scores from frontend format
-    const examType = gradeData.examType || 'midterm';
-    const listening = gradeData.midterm?.listening || gradeData.final?.listening || 0;
-    const reading = gradeData.midterm?.reading || gradeData.final?.reading || 0;
-    const writing = gradeData.midterm?.writing || gradeData.final?.writing || 0;
-    const speaking = gradeData.midterm?.speaking || gradeData.final?.speaking || 0;
-    const overall = gradeData.midterm?.overall || gradeData.final?.overall || 
-                     ((listening + reading + writing + speaking) / 4);
+    const midtermScore = gradeData.midterm?.overall || 0;
+    const finalScore = gradeData.final?.overall || 0;
+    const averageScore = Number((midtermScore * 0.4 + finalScore * 0.6).toFixed(1));
+    const attendanceScore = gradeData.attendance?.attendedSessions || 0;
     
     const { data: score, error } = await supabase
       .from('scores')
       .insert({
-        id_student: gradeData.studentId, // Fixed: Use id_student (FK column in scores table)
+        id_students: gradeData.studentId,
         id_class: gradeData.classId,
-        exam_type: examType,
-        exam_date: gradeData.examDate || new Date().toISOString().split('T')[0],
-        score_listening: listening,
-        score_reading: reading,
-        score_writing: writing,
-        score_speaking: speaking,
-        overall_score: overall
+        midterm_score: midtermScore,
+        final_score: finalScore,
+        average_score: averageScore,
+        attendance_score: attendanceScore
       })
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [Server] Create grade error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Server] Grade created successfully:', score.id_score);
     
     return c.json({ 
       id: score.id_score,
       studentId: gradeData.studentId,
       classId: gradeData.classId,
-      examType: score.exam_type,
-      examDate: score.exam_date,
       attendance: {
         totalSessions: 0,
-        attendedSessions: 0,
+        attendedSessions: Math.round(score.attendance_score || 0),
         absentSessions: 0
       },
       midterm: {
-        reading: score.exam_type === 'midterm' ? score.score_reading : 0,
-        listening: score.exam_type === 'midterm' ? score.score_listening : 0,
-        writing: score.exam_type === 'midterm' ? score.score_writing : 0,
-        speaking: score.exam_type === 'midterm' ? score.score_speaking : 0,
-        overall: score.exam_type === 'midterm' ? score.overall_score : 0
+        reading: 0,
+        listening: 0,
+        writing: 0,
+        speaking: 0,
+        overall: score.midterm_score || 0
       },
       final: {
-        reading: score.exam_type === 'final' ? score.score_reading : 0,
-        listening: score.exam_type === 'final' ? score.score_listening : 0,
-        writing: score.exam_type === 'final' ? score.score_writing : 0,
-        speaking: score.exam_type === 'final' ? score.score_speaking : 0,
-        overall: score.exam_type === 'final' ? score.overall_score : 0
+        reading: 0,
+        listening: 0,
+        writing: 0,
+        speaking: 0,
+        overall: score.final_score || 0
       },
-      average: score.overall_score
+      average: score.average_score || 0
     });
   } catch (error) {
-    console.error("Create grade error:", error);
+    console.error("❌ [Server] Create grade error:", error);
     return c.json({ error: "Lỗi khi tạo điểm" }, 500);
   }
 });
 
+// PUT update grades - Schema mới: chỉ update 1 record duy nhất với midterm_score, final_score, average_score
 app.put("/make-server-e2861589/grades/:id", async (c) => {
   try {
     const id = c.req.param('id');
     const gradeData = await c.req.json();
     
-    // Extract scores from frontend format
-    const examType = gradeData.examType || 'midterm';
-    const listening = gradeData.midterm?.listening || gradeData.final?.listening || 0;
-    const reading = gradeData.midterm?.reading || gradeData.final?.reading || 0;
-    const writing = gradeData.midterm?.writing || gradeData.final?.writing || 0;
-    const speaking = gradeData.midterm?.speaking || gradeData.final?.speaking || 0;
-    const overall = gradeData.midterm?.overall || gradeData.final?.overall || 
-                     ((listening + reading + writing + speaking) / 4);
+    console.log('💾 [Server] PUT /grades/:id - Updating grade:', id, '(NEW SCHEMA)');
+    console.log('📝 [Server] Grade data:', gradeData);
     
-    const { error } = await supabase
+    const { studentId, classId, midterm, final, attendance } = gradeData;
+    
+    // Calculate average: midterm 40% + final 60%
+    const midtermScore = midterm?.overall || 0;
+    const finalScore = final?.overall || 0;
+    const averageScore = Number((midtermScore * 0.4 + finalScore * 0.6).toFixed(1));
+    const attendanceScore = attendance?.attendedSessions || 0;
+    
+    // Check if record exists
+    const { data: existingScore } = await supabase
       .from('scores')
-      .update({
-        exam_type: examType,
-        exam_date: gradeData.examDate || new Date().toISOString().split('T')[0],
-        score_listening: listening,
-        score_reading: reading,
-        score_writing: writing,
-        score_speaking: speaking,
-        overall_score: overall
-      })
-      .eq('id_score', id);
+      .select('id_score')
+      .eq('id_score', id)
+      .single();
     
-    if (error) throw error;
+    if (existingScore) {
+      // Update existing record
+      const { error: updateError } = await supabase
+        .from('scores')
+        .update({
+          midterm_score: midtermScore,
+          final_score: finalScore,
+          average_score: averageScore,
+          attendance_score: attendanceScore,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id_score', id);
+      
+      if (updateError) {
+        console.error('❌ [Server] Error updating score:', updateError);
+        throw updateError;
+      }
+      console.log('✅ [Server] Score updated successfully');
+    } else {
+      // Create new record if it doesn't exist
+      if (!studentId || !classId) {
+        throw new Error('studentId and classId are required to create new score');
+      }
+      
+      const { error: createError } = await supabase
+        .from('scores')
+        .insert({
+          id_students: studentId,
+          id_class: classId,
+          midterm_score: midtermScore,
+          final_score: finalScore,
+          average_score: averageScore,
+          attendance_score: attendanceScore
+        });
+      
+      if (createError) {
+        console.error('❌ [Server] Error creating score:', createError);
+        throw createError;
+      }
+      console.log('✅ [Server] New score created successfully');
+    }
     
     return c.json({ 
       success: true,
-      id: id,
-      attendance: {
-        totalSessions: 0,
-        attendedSessions: attendanceScore,
-        absentSessions: 0
-      },
-      midterm: {
-        reading: midtermScore,
-        listening: midtermScore,
-        writing: midtermScore,
-        speaking: midtermScore,
-        overall: midtermScore
-      },
-      final: {
-        reading: finalScore,
-        listening: finalScore,
-        writing: finalScore,
-        speaking: finalScore,
-        overall: finalScore
-      },
-      average: averageScore
+      message: 'Cập nhật điểm thành công'
     });
   } catch (error) {
-    console.error("Update grade error:", error);
+    console.error("❌ [Server] Update grade error:", error);
     return c.json({ error: "Lỗi khi cập nhật điểm" }, 500);
   }
 });
@@ -2340,7 +2578,7 @@ app.get("/make-server-e2861589/feedback", async (c) => {
 app.post("/make-server-e2861589/feedback", async (c) => {
   try {
     const feedbackData = await c.req.json();
-    console.log('💬 [Server] POST /feedback - Creating:', feedbackData);
+    console.log('���� [Server] POST /feedback - Creating:', feedbackData);
     
     // Generate unique feedback ID (PH001, PH002, ...) - PH = Phản Hồi
     const feedbackId = await generateNextId('feedbacks', 'id_feedback');

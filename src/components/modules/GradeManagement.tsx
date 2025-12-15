@@ -26,11 +26,14 @@ interface Grade {
   id: string;
   studentId: string;
   studentName: string;
+  classId?: string;
   className: string;
   attendance: Attendance;
   midterm: IELTSScore;
   final: IELTSScore;
   average: number;
+  midtermId?: string | null;
+  finalId?: string | null;
 }
 
 interface GradeManagementProps {
@@ -212,13 +215,14 @@ export default function GradeManagement({ user }: GradeManagementProps) {
       scores.overall = calculateOverall(scores.reading, scores.listening, scores.writing, scores.speaking);
     }
 
-    // Tính lại average
-    updatedGrade.average = calculateOverall(
-      updatedGrade.midterm.overall * 0.4 + updatedGrade.final.overall * 0.6,
-      updatedGrade.midterm.overall * 0.4 + updatedGrade.final.overall * 0.6,
-      updatedGrade.midterm.overall * 0.4 + updatedGrade.final.overall * 0.6,
-      updatedGrade.midterm.overall * 0.4 + updatedGrade.final.overall * 0.6
-    );
+    // Tính lại average: midterm 40% + final 60%
+    // Average is calculated from overall scores, not individual skills
+    const midtermOverall = updatedGrade.midterm.overall || 0;
+    const finalOverall = updatedGrade.final.overall || 0;
+    const rawAverage = midtermOverall * 0.4 + finalOverall * 0.6;
+    
+    // Apply IELTS rounding to the final average
+    updatedGrade.average = calculateOverall(rawAverage, rawAverage, rawAverage, rawAverage);
 
     setEditingGrade(updatedGrade);
   };
