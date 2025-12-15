@@ -122,13 +122,28 @@ export default function StudentDashboard({ user }: StudentDashboardProps) {
       // ✅ Load scores from scores table (via /grades API)
       if (user.studentId) {
         const gradesResponse = await gradesAPI.getAll();
-        const studentGrades = (gradesResponse.grades || [])
-          .filter((g: any) => g.studentId === user.studentId);
         
-        console.log('📊 [StudentDashboard] Loaded scores for student:', user.studentId, studentGrades);
-        console.log('📊 [StudentDashboard] All grades response:', gradesResponse);
+        console.log('🔍 [StudentDashboard] DEBUG - User studentId:', user.studentId, 'Type:', typeof user.studentId);
+        console.log('🔍 [StudentDashboard] DEBUG - All grades count:', gradesResponse.grades?.length || 0);
+        console.log('🔍 [StudentDashboard] DEBUG - First 3 grades:', gradesResponse.grades?.slice(0, 3));
+        
+        // Convert both to string for comparison to handle UUID type differences
+        const userStudentIdStr = String(user.studentId);
+        
+        const studentGrades = (gradesResponse.grades || [])
+          .filter((g: any) => {
+            const gradeStudentIdStr = String(g.studentId);
+            const match = gradeStudentIdStr === userStudentIdStr;
+            if (gradesResponse.grades?.length < 10) { // Only log if not too many records
+              console.log(`🔍 Comparing: g.studentId=${gradeStudentIdStr} vs user.studentId=${userStudentIdStr} => ${match}`);
+            }
+            return match;
+          });
+        
+        console.log('📊 [StudentDashboard] Loaded scores for student:', user.studentId);
+        console.log('📊 [StudentDashboard] Filtered student grades count:', studentGrades.length);
         console.log('📊 [StudentDashboard] User object:', user);
-        console.log('📊 [StudentDashboard] Filtered student grades:', studentGrades);
+        console.log('📊 [StudentDashboard] Sample filtered grade:', studentGrades[0]);
         
         setAllGrades(studentGrades); // ✅ Store all scores
         

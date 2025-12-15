@@ -115,28 +115,44 @@ export default function FeedbackManagement({ user }: FeedbackManagementProps) {
     setShowCreateModal(false);
   };
 
-  const handleRespondToFeedback = (feedbackId: string, response: string) => {
-    setFeedbacks(feedbacks.map(f =>
-      f.id === feedbackId
-        ? {
-            ...f,
-            status: 'responded' as const,
-            reply: response,
-            replied_at: new Date().toISOString().split('T')[0],
-            replied_by: user.fullName,
-          }
-        : f
-    ));
-    
-    // Update selected feedback if viewing
-    if (viewingFeedback?.id === feedbackId) {
-      setViewingFeedback({
-        ...viewingFeedback,
-        status: 'responded',
-        reply: response,
-        replied_at: new Date().toISOString().split('T')[0],
-        replied_by: user.fullName,
+  const handleRespondToFeedback = async (feedbackId: string, response: string) => {
+    try {
+      console.log('💬 [FeedbackManagement] Responding to feedback:', feedbackId);
+      
+      // ✅ Call API to save response to database
+      await feedbackAPI.update(feedbackId, {
+        response: response,
+        status: 'responded'
       });
+      
+      console.log('✅ [FeedbackManagement] Response saved successfully');
+      
+      // Update local state
+      setFeedbacks(feedbacks.map(f =>
+        f.id === feedbackId
+          ? {
+              ...f,
+              status: 'responded' as const,
+              reply: response,
+              replied_at: new Date().toISOString().split('T')[0],
+              replied_by: user.fullName,
+            }
+          : f
+      ));
+      
+      // Update selected feedback if viewing
+      if (viewingFeedback?.id === feedbackId) {
+        setViewingFeedback({
+          ...viewingFeedback,
+          status: 'responded',
+          reply: response,
+          replied_at: new Date().toISOString().split('T')[0],
+          replied_by: user.fullName,
+        });
+      }
+    } catch (err: any) {
+      console.error('❌ [FeedbackManagement] Failed to save response:', err);
+      alert('Không thể gửi phản hồi. Vui lòng thử lại!');
     }
   };
 

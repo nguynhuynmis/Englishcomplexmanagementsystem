@@ -2046,24 +2046,26 @@ app.post("/make-server-e2861589/grades/generate-samples", async (c) => {
   }
 });
 
-// GET all grades - Schema mới: mỗi học viên CHỈ có 1 record với midterm_score, final_score, average_score
+// GET all grades - Returns all exam scores from scores table
 app.get("/make-server-e2861589/grades", async (c) => {
   try {
-    console.log('📊 [Server] GET /grades - Start (NEW SCHEMA: midterm_score, final_score, average_score)');
+    console.log('📊 [Server] GET /grades - Start');
     
     // Get all scores with student and class info
+    // ⚠️ Fix: Changed nested select syntax to avoid alias conflict
     const { data: scores, error: scoresError } = await supabase
       .from('scores')
       .select(`
         *,
-        students (
+        students!inner (
           id_student,
           id_user,
-          user:id_user (
+          student_code,
+          users!inner (
             full_name
           )
         ),
-        class (
+        class!inner (
           id_class,
           name_class
         )
@@ -2082,40 +2084,32 @@ app.get("/make-server-e2861589/grades", async (c) => {
     }
     
     // Transform to frontend format
-    // Schema mới: 1 record = 1 student, không cần grouping như cũ
+    // Each score record represents one exam/test
     const transformed = scores.map(score => ({
       id: score.id_score,
-      studentId: score.id_students,
-      studentName: score.students?.user?.full_name || '',
+      studentId: score.id_student, // ✅ Fixed: use id_student not id_students
+      studentName: score.students?.users?.full_name || '',
+      studentCode: score.students?.student_code || '',
       classId: score.id_class,
       className: score.class?.name_class || '',
-      // Attendance object structure
-      attendance: {
-        totalSessions: 0,
-        attendedSessions: Math.round(score.attendance_score || 0),
-        absentSessions: 0
-      },
-      // Midterm - Schema mới chỉ có 1 điểm tổng (không có skills riêng)
-      midterm: {
-        reading: 0,
-        listening: 0,
-        writing: 0,
-        speaking: 0,
-        overall: score.midterm_score || 0
-      },
-      // Final - Schema mới chỉ có 1 điểm tổng (không có skills riêng)
-      final: {
-        reading: 0,
-        listening: 0,
-        writing: 0,
-        speaking: 0,
-        overall: score.final_score || 0
-      },
-      average: score.average_score || 0,
-      updatedAt: score.updated_at
+      examType: score.exam_type,
+      examDate: score.exam_date,
+      // Individual skill scores
+      listening: score.score_listening || 0,
+      reading: score.score_reading || 0,
+      writing: score.score_writing || 0,
+      speaking: score.score_speaking || 0,
+      // Overall score for this exam
+      average: score.overall_score || 0,
+      feedback: score.feedback || '',
+      updatedAt: score.updated_at,
+      createdAt: score.created_at
     }));
     
     console.log('✅ [Server] GET /grades - Success, returning', transformed.length, 'records');
+    if (transformed.length > 0) {
+      console.log('📊 [Server] Sample grade:', transformed[0]);
+    }
     return c.json({ grades: transformed });
   } catch (error) {
     console.error("❌ [Server] Get grades error:", error);
@@ -2624,7 +2618,16 @@ app.put("/make-server-e2861589/feedback/:id", async (c) => {
     console.log(`💬 [Server] PUT /feedback/${id} - Updating:`, feedbackData);
     
     const updateData: any = {};
-    if (feedbackData.reply !== undefined) updateData.reply = feedbackData.reply;
+    
+    // ✅ Map both 'response' and 'reply' to database column 'response'
+    if (feedbackData.response !== undefined) {
+      updateData.response = feedbackData.response;
+      updateData.responded_at = new Date().toISOString();
+    } else if (feedbackData.reply !== undefined) {
+      updateData.response = feedbackData.reply;
+      updateData.responded_at = new Date().toISOString();
+    }
+    
     if (feedbackData.status !== undefined) updateData.status = feedbackData.status;
     
     const { data: feedback, error } = await supabase
@@ -2645,7 +2648,8 @@ app.put("/make-server-e2861589/feedback/:id", async (c) => {
       content: feedback.content,
       status: feedback.status,
       date: new Date(feedback.created_at).toLocaleDateString('vi-VN'),
-      reply: feedback.reply
+      reply: feedback.response, // ✅ Map 'response' column to 'reply' field
+      replied_at: feedback.responded_at
     });
   } catch (error) {
     console.error("❌ [Server] Update feedback error:", error);

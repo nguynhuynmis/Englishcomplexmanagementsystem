@@ -1,22 +1,75 @@
-import { Users, BookOpen, GraduationCap, TrendingUp, Download } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Users, BookOpen, GraduationCap, Calendar, MessageSquare, Building2, UserCheck, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { fetchReportStats, ReportStats } from '../../utils/dashboardApi';
+import { fetchDashboardStats, DashboardStats } from '../../utils/dashboardApi';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+
+interface TodaySchedule {
+  time: string;
+  class: string;
+  teacher: string;
+  room: string;
+}
 
 export default function DirectorDashboard() {
-  const [reportStats, setReportStats] = useState<ReportStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalClasses: 0,
+    activeClasses: 0,
+    todaySchedules: 0,
+    totalEnrollments: 0,
+    totalCenters: 0,
+    recentEnrollments: [],
+    enrollmentsByMonth: [],
+    classesByStatus: []
+  });
+  const [todaySchedule, setTodaySchedule] = useState<TodaySchedule[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchReportStats().then(data => setReportStats(data));
+    loadDashboardData();
   }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchDashboardStats();
+      setStats(data);
+      setTodaySchedule([]);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statsDisplay = [
+    { label: 'Tổng học viên', value: stats.totalStudents.toString(), icon: Users, color: '#2baec0' },
+    { label: 'Lớp đang hoạt động', value: stats.activeClasses.toString(), icon: BookOpen, color: '#10b981' },
+    { label: 'Giáo viên giảng dạy', value: stats.totalTeachers.toString(), icon: GraduationCap, color: '#e4ccf1' },
+    { label: 'Ghi danh tổng', value: stats.totalEnrollments.toString(), icon: UserCheck, color: '#f59e0b' },
+    { label: 'Trung tâm', value: stats.totalCenters.toString(), icon: Building2, color: '#8b5cf6' },
+    { label: 'Lịch học hôm nay', value: stats.todaySchedules.toString(), icon: Calendar, color: '#ffe9ae' },
+  ];
+
+  const COLORS = ['#2baec0', '#10b981', '#f59e0b', '#e4ccf1'];
 
   const exportToExcel = () => {
     alert('Xuất báo cáo Excel thành công!');
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2baec0]"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Export Button */}
       <div className="flex items-center justify-between">
         <h1 className="text-gray-900">Dashboard - Ban giám đốc</h1>
         <button
@@ -30,154 +83,113 @@ export default function DirectorDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-gray-600">Tổng học viên</p>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-green-light)' }}>
-              <Users className="w-5 h-5" style={{ color: '#00b894' }} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {statsDisplay.map((stat) => (
+          <div key={stat.label} className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 mb-1">{stat.label}</p>
+                <p className="text-gray-900">{stat.value}</p>
+              </div>
+              <div className="p-3 rounded-lg" style={{ backgroundColor: stat.color }}>
+                <stat.icon className="w-6 h-6 text-white" />
+              </div>
             </div>
           </div>
-          <h2 className="text-gray-900 mb-1">{reportStats?.totalStudents || 0}</h2>
-          <p className="text-sm" style={{ color: '#00b894' }}>+12% so với tháng trước</p>
+        ))}
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Enrollments by Month Chart */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-gray-900 mb-4">Xu hướng ghi danh theo tháng</h2>
+          {stats.enrollmentsByMonth && stats.enrollmentsByMonth.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stats.enrollmentsByMonth}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="count" fill="#2baec0" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-gray-500 text-center py-8">Chưa có dữ liệu</p>
+          )}
         </div>
 
+        {/* Classes by Status Pie Chart */}
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-gray-600">Tổng lớp học</p>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--brand-primary-100)' }}>
-              <BookOpen className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
-            </div>
-          </div>
-          <h2 className="text-gray-900 mb-1">{reportStats?.totalClasses || 0}</h2>
-          <p className="text-sm" style={{ color: 'var(--brand-primary)' }}>+5% so với tháng trước</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-gray-600">Tổng giảng viên</p>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-lavender-light)' }}>
-              <GraduationCap className="w-5 h-5" style={{ color: 'var(--pastel-lavender-dark)' }} />
-            </div>
-          </div>
-          <h2 className="text-gray-900 mb-1">{reportStats?.totalTeachers || 0}</h2>
-          <p className="text-sm" style={{ color: 'var(--pastel-lavender-dark)' }}>+3% so với tháng trước</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-gray-600">Lớp đang hoạt động</p>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--pastel-yellow-light)' }}>
-              <TrendingUp className="w-5 h-5" style={{ color: '#e67e22' }} />
-            </div>
-          </div>
-          <h2 className="text-gray-900 mb-1">{reportStats?.activeClasses || 0}</h2>
-          <p className="text-sm" style={{ color: '#e67e22' }}>+7% so với tháng trước</p>
+          <h2 className="text-gray-900 mb-4">Phân bổ lớp học theo trạng thái</h2>
+          {stats.classesByStatus && stats.classesByStatus.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={stats.classesByStatus}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ status, count }) => `${status}: ${count}`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
+                >
+                  {stats.classesByStatus.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-gray-500 text-center py-8">Chưa có dữ liệu</p>
+          )}
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Enrollment Trend */}
+        {/* Recent Enrollments */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Xu hướng tăng trưởng học viên</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={reportStats?.enrollmentTrend || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="students" stroke="var(--brand-primary)" strokeWidth={2} name="Số học viên" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Students by Campus */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Học viên theo cơ sở</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={reportStats?.studentsByCampus || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="students" fill="#00b894" name="Số học viên" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Grade Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Phân bố điểm số (%)</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={reportStats?.gradeDistribution || []}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {reportStats?.gradeDistribution?.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Teacher Performance */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-gray-900 mb-4">Hiệu suất giảng dạy</h2>
+          <h2 className="text-gray-900 mb-4">Ghi danh gần đây</h2>
           <div className="space-y-3">
-            {reportStats?.teacherPerformance?.map((teacher, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-gray-900">{teacher.name}</p>
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">★</span>
-                    <span className="text-gray-900">{teacher.rating}</span>
+            {stats.recentEnrollments && stats.recentEnrollments.length > 0 ? (
+              stats.recentEnrollments.slice(0, 5).map((enrollment) => (
+                <div key={enrollment.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <p className="text-gray-900">{enrollment.student_name}</p>
+                    <span className="text-gray-600 text-sm">{enrollment.joined_date}</span>
                   </div>
+                  <p className="text-gray-600 text-sm">Lớp: {enrollment.class_name}</p>
+                  <p className="text-gray-500 text-xs mt-1">ID: {enrollment.id}</p>
                 </div>
-                <div className="flex gap-4 text-gray-600 text-sm">
-                  <span>{teacher.classes} lớp</span>
-                  <span>{teacher.students} học viên</span>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-8">Chưa có ghi danh mới</p>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Recent Feedback */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-gray-900 mb-4">Phản hồi & Đánh giá gần đây</h2>
-        <div className="space-y-3">
-          {reportStats?.recentFeedback?.map((feedback, index) => (
-            <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="text-gray-900">{feedback.student}</p>
-                  <div className="flex gap-1 my-1">
-                    {[...Array(5)].map((_, i) => (
-                      <span key={i} className={i < feedback.rating ? 'text-yellow-500' : 'text-gray-300'}>
-                        ★
-                      </span>
-                    ))}
+        {/* Today's Schedule */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-gray-900 mb-4">Lịch học hôm nay</h2>
+          <div className="space-y-3">
+            {todaySchedule.length > 0 ? (
+              todaySchedule.map((schedule, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <p style={{ color: 'var(--brand-primary)' }}>{schedule.time}</p>
+                    <span className="text-gray-600 text-sm">{schedule.room}</span>
                   </div>
+                  <p className="text-gray-900 mb-1">{schedule.class}</p>
+                  <p className="text-gray-600 text-sm">GV: {schedule.teacher}</p>
                 </div>
-                <span className="text-gray-500 text-sm">{feedback.date}</span>
-              </div>
-              <p className="text-gray-600 text-sm">{feedback.comment}</p>
-            </div>
-          ))}
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-8">Không có lịch học hôm nay</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
