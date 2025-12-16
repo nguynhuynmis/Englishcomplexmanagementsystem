@@ -1443,7 +1443,7 @@ app.post("/make-server-e2861589/classes", async (c) => {
       .from('class')
       .insert({
         id_class: classId,
-        class_code: classId, // Use same ID for class_code (e.g., LH001)
+        // Note: class_code removed - using id_class as the unique code
         id_center: center?.id_center,
         id_level: level?.id_level,
         name_class: classData.name,
