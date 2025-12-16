@@ -28,6 +28,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       
       if (response.user) {
         console.log('✅ [LoginPage] User data received:', response.user);
+        console.log('🆔 [LoginPage] User ID:', response.user.id);
+        console.log('🎭 [LoginPage] User role:', response.user.role);
+        console.log('👨‍🏫 [LoginPage] Teacher ID:', response.user.teacherId, `(type: ${typeof response.user.teacherId})`);
+        console.log('👨‍🎓 [LoginPage] Student ID:', response.user.studentId, `(type: ${typeof response.user.studentId})`);
         onLogin(response.user);
       } else {
         console.error('❌ [LoginPage] No user data in response');

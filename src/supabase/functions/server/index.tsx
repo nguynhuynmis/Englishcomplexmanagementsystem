@@ -283,6 +283,7 @@ app.post("/make-server-e2861589/auth/login", async (c) => {
       .eq('id_account', account.id_account);
     
     const user = users && users.length > 0 ? users[0] : null;
+    console.log('👤 [Server] User record:', user ? `Found: ${user.id_user}` : 'Not found');
     
     // Get code and role-specific ID based on role
     let code = null;
@@ -293,32 +294,77 @@ app.post("/make-server-e2861589/auth/login", async (c) => {
       console.log('🔍 [Server] Looking for student with id_user:', user?.id_user);
       const { data: student, error: studentError } = await supabase
         .from('students')
-        .select('student_code, id_student')
+        .select('id_student')
         .eq('id_user', user?.id_user)
         .single();
+      
+      console.log('🔍 [Server] Student query result:', { student, error: studentError });
       
       if (studentError) {
         console.error('❌ [Server] Student query error:', studentError);
       }
       
-      code = student?.student_code;
+      // Use id_student as code (e.g., HV001)
+      code = student?.id_student;
       studentId = student?.id_student;
       console.log('📝 [Server] Student code:', code, 'ID:', studentId);
     } else if (roleName === 'teacher') {
       console.log('🔍 [Server] Looking for teacher with id_user:', user?.id_user);
-      const { data: teacher, error: teacherError } = await supabase
-        .from('teachers')
-        .select('teacher_code, id_teacher')
-        .eq('id_user', user?.id_user)
-        .single();
+      console.log('🔍 [Server] User id_user type:', typeof user?.id_user);
       
-      if (teacherError) {
-        console.error('❌ [Server] Teacher query error:', teacherError);
+      // 🔍 DIAGNOSTIC: Get all teachers to see structure and find match
+      const { data: allTeachers, error: allTeachersError } = await supabase
+        .from('teachers')
+        .select('*');
+      
+      console.log('🔍 [DIAGNOSTIC] All teachers in database:', allTeachers);
+      console.log('🔍 [DIAGNOSTIC] Number of teachers:', allTeachers?.length || 0);
+      
+      if (allTeachers && allTeachers.length > 0) {
+        console.log('🔍 [DIAGNOSTIC] First teacher columns:', Object.keys(allTeachers[0]));
+        console.log('🔍 [DIAGNOSTIC] First teacher data:', allTeachers[0]);
+        
+        // Try to find teacher by matching id_user
+        const matchedTeacher = allTeachers.find(t => {
+          console.log(`🔍 [MATCH] Comparing t.id_user (${t.id_user}) with user.id_user (${user?.id_user})`);
+          return t.id_user === user?.id_user;
+        });
+        
+        console.log('🔍 [DIAGNOSTIC] Matched teacher:', matchedTeacher);
+        
+        if (matchedTeacher) {
+          code = matchedTeacher.id_teacher;
+          teacherId = matchedTeacher.id_teacher;
+          console.log('✅ [Server] Found teacher by manual match!');
+          console.log('📝 [Server] Teacher code:', code, 'ID:', teacherId);
+        } else {
+          console.warn('⚠️ [Server] No teacher found matching id_user:', user?.id_user);
+          console.warn('⚠️ [Server] Available id_user values in teachers:', allTeachers.map(t => t.id_user));
+        }
       }
       
-      code = teacher?.teacher_code;
-      teacherId = teacher?.id_teacher;
-      console.log('📝 [Server] Teacher code:', code, 'ID:', teacherId);
+      // Fallback: Try original query method
+      if (!teacherId) {
+        const { data: teacher, error: teacherError } = await supabase
+          .from('teachers')
+          .select('id_teacher')
+          .eq('id_user', user?.id_user)
+          .single();
+        
+        console.log('🔍 [Server] Fallback query result:', { teacher, error: teacherError });
+        
+        if (teacher) {
+          code = teacher.id_teacher;
+          teacherId = teacher.id_teacher;
+        } else if (teacherError) {
+          console.error('❌ [Server] Teacher query error:', teacherError);
+        }
+      }
+      
+      console.log('📝 [Server] Final Teacher code:', code, 'ID:', teacherId);
+      console.log('📝 [Server] Teacher ID type:', typeof teacherId);
+    } else {
+      console.log('⚠️ [Server] Role is neither student nor teacher:', roleName);
     }
     
     // Return user data (matching old format for frontend compatibility)
@@ -331,11 +377,16 @@ app.post("/make-server-e2861589/auth/login", async (c) => {
       phone: account.phone,
       avatar: user?.avatar_url || null,
       code: code,
-      teacherId: teacherId, // For teacher role
-      studentId: studentId  // For student role
+      teacherId: teacherId || '', // ✅ Always return string, not null
+      studentId: studentId || ''  // ✅ Always return string, not null
     };
     
-    console.log('✅ [Server] Login successful:', userData);
+    console.log('✅ [Server] Login successful, returning userData:');
+    console.log('   - id:', userData.id);
+    console.log('   - role:', userData.role);
+    console.log('   - code:', userData.code);
+    console.log('   - teacherId:', userData.teacherId, `(type: ${typeof userData.teacherId})`);
+    console.log('   - studentId:', userData.studentId, `(type: ${typeof userData.studentId})`);
     
     return c.json({ user: userData });
   } catch (error) {
@@ -2731,9 +2782,9 @@ app.get("/make-server-e2861589/assignments", async (c) => {
     
     // Transform to match frontend format
     const transformed = assignments.map(a => {
-      console.log('🔄 [Server] Processing assignment ID:', a.id_asignment, 'Type:', typeof a.id_asignment);
+      console.log('🔄 [Server] Processing assignment ID:', a.id_assignment, 'Type:', typeof a.id_assignment);
       return {
-        id: a.id_asignment?.toString() || 'unknown',
+        id: a.id_assignment?.toString() || 'unknown',
       title: a.title || 'Untitled',
       description: a.description || '',
       className: a.class?.name_class || 'N/A',
@@ -2762,26 +2813,110 @@ app.post("/make-server-e2861589/assignments", async (c) => {
     const assignmentData = await c.req.json();
     console.log('📝 [Server] POST /assignments - Creating:', assignmentData);
     
-    const { data: assignment, error } = await supabase
-      .from('asignments')
-      .insert({
+    // ✅ Validate that createdBy is provided and is a teacher ID
+    if (!assignmentData.createdBy) {
+      console.error('❌ [Server] createdBy is missing in request');
+      return c.json({ error: "Thiếu thông tin giáo viên (createdBy)" }, 400);
+    }
+    
+    console.log('🔍 [Server] Validating teacher ID:', assignmentData.createdBy);
+    
+    // Verify teacher exists in database
+    const { data: teacherExists, error: teacherCheckError } = await supabase
+      .from('teachers')
+      .select('id_teacher')
+      .eq('id_teacher', assignmentData.createdBy)
+      .single();
+    
+    if (teacherCheckError || !teacherExists) {
+      console.error('❌ [Server] Teacher not found in database:', assignmentData.createdBy);
+      console.error('❌ [Server] Teacher check error:', teacherCheckError);
+      return c.json({ error: `Không tìm thấy giáo viên với ID: ${assignmentData.createdBy}` }, 400);
+    }
+    
+    console.log('✅ [Server] Teacher verified:', teacherExists.id_teacher);
+    
+    // 🆔 Generate next assignment ID with retry logic for race conditions
+    const newAssignmentId = await retryWithBackoff(async () => {
+      const nextId = await generateNextId('asignments', 'id_assignment');
+      console.log(`🆔 [Server] Generated assignment ID: ${nextId}`);
+      
+      // Prepare insert data
+      const insertData = {
+        id_assignment: nextId,
         id_class: assignmentData.classId,
         title: assignmentData.title,
         description: assignmentData.description,
         file_url: assignmentData.fileUrl || null,
-        created_by: assignmentData.createdBy,
+        created_by: assignmentData.createdBy, // Teacher ID (GV001)
         due_date: assignmentData.dueDate || null
-      })
-      .select()
+      };
+      
+      console.log('📝 [Server] Inserting assignment with data:', JSON.stringify(insertData, null, 2));
+      
+      // Try to insert with this ID
+      const { data: assignment, error } = await supabase
+        .from('asignments')
+        .insert(insertData)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ [Server] Insert error:', error);
+        throw error;
+      }
+      
+      console.log('✅ [Server] Insert successful, returned data:', JSON.stringify(assignment, null, 2));
+      
+      return assignment;
+    });
+    
+    console.log('✅ [Server] Assignment created:', newAssignmentId.id_assignment);
+    
+    // Query again with joins to get complete data including teacher info
+    const { data: fullAssignment, error: queryError } = await supabase
+      .from('asignments')
+      .select(`
+        *,
+        class:id_class (
+          name_class,
+          id_class
+        ),
+        teachers:created_by (
+          id_teacher,
+          user:id_user (
+            full_name
+          )
+        )
+      `)
+      .eq('id_assignment', newAssignmentId.id_assignment)
       .single();
     
-    if (error) throw error;
+    if (queryError) {
+      console.error('❌ [Server] Query error after insert:', queryError);
+      throw queryError;
+    }
     
-    console.log('✅ [Server] Assignment created:', assignment.id_asignment);
-    return c.json({ 
-      id: assignment.id_asignment.toString(),
-      ...assignmentData
-    });
+    console.log('📊 [Server] Full assignment data with joins:', JSON.stringify(fullAssignment, null, 2));
+    
+    // Transform to match frontend format
+    const responseData = {
+      id: fullAssignment.id_assignment?.toString() || 'unknown',
+      title: fullAssignment.title || 'Untitled',
+      description: fullAssignment.description || '',
+      className: fullAssignment.class?.name_class || 'N/A',
+      classId: fullAssignment.class?.id_class || null,
+      teacher: fullAssignment.teachers?.user?.full_name || 'N/A',
+      dueDate: fullAssignment.due_date ? new Date(fullAssignment.due_date).toLocaleDateString('vi-VN') : 'N/A',
+      dueDateRaw: fullAssignment.due_date,
+      status: fullAssignment.due_date && new Date(fullAssignment.due_date) < new Date() ? 'closed' : 'open',
+      fileUrl: fullAssignment.file_url,
+      createdAt: fullAssignment.created_at,
+      submissions: 0,
+      totalStudents: 0
+    };
+    
+    return c.json(responseData);
   } catch (error) {
     console.error("❌ [Server] Create assignment error:", error);
     return c.json({ error: "Lỗi khi tạo bài tập" }, 500);
@@ -2804,7 +2939,7 @@ app.put("/make-server-e2861589/assignments/:id", async (c) => {
         file_url: assignmentData.fileUrl || null,
         due_date: assignmentData.dueDate || null
       })
-      .eq('id_asignment', id);
+      .eq('id_assignment', id);
     
     if (error) throw error;
     
@@ -2825,7 +2960,7 @@ app.delete("/make-server-e2861589/assignments/:id", async (c) => {
     const { error } = await supabase
       .from('asignments')
       .delete()
-      .eq('id_asignment', id);
+      .eq('id_assignment', id);
     
     if (error) throw error;
     
@@ -2856,7 +2991,7 @@ app.get("/make-server-e2861589/assignments/:id/submissions", async (c) => {
           id_student
         )
       `)
-      .eq('id_asignment', assignmentId)
+      .eq('id_assignment', assignmentId)
       .order('submitted_at', { ascending: false });
     
     if (error) throw error;
@@ -2866,7 +3001,7 @@ app.get("/make-server-e2861589/assignments/:id/submissions", async (c) => {
     // Transform to match frontend format
     const transformed = submissions?.map(s => ({
       id: s.id.toString(),
-      assignmentId: s.id_asignment.toString(),
+      assignmentId: s.id_assignment.toString(),
       studentName: s.student?.full_name || 'N/A',
       studentId: s.id_student.toString(),
       submittedDate: s.submitted_at ? new Date(s.submitted_at).toLocaleDateString('vi-VN') : undefined,
@@ -2892,7 +3027,7 @@ app.post("/make-server-e2861589/submissions", async (c) => {
     const { data: submission, error } = await supabase
       .from('asignment_submissions')
       .insert({
-        id_asignment: submissionData.assignmentId,
+        id_assignment: submissionData.assignmentId,
         id_student: submissionData.studentId,
         file_url: submissionData.fileUrl || null,
         submitted_at: new Date().toISOString()
@@ -3080,7 +3215,10 @@ app.get("/make-server-e2861589/users", async (c) => {
         status: convertedStatus,
         avatar: u.avatar_url || null,
         lastLogin: account?.last_login || null,
-        createdAt: u.created_at
+        createdAt: u.created_at,
+        // ✅ Add specific IDs for teacher and student
+        teacherId: teacher?.id_teacher || '',
+        studentId: student?.id_student || ''
       };
     });
     
@@ -3164,7 +3302,10 @@ app.get("/make-server-e2861589/users/:id", async (c) => {
       address: user.address || '',
       role: userRole,
       status: account?.status === 1 ? 'active' : 'inactive',
-      avatar: user.avatar_url || null
+      avatar: user.avatar_url || null,
+      // ✅ Add specific IDs for teacher and student
+      teacherId: teacher?.id_teacher || '',
+      studentId: student?.id_student || ''
     });
   } catch (error) {
     console.error("Get user by ID error:", error);

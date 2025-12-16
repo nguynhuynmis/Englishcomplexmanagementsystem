@@ -34,6 +34,8 @@ export const ID_PREFIXES = {
   materials: 'TL',     // Tài Liệu
   notification: 'ND',  // Thông báo (Notification)
   feedbacks: 'PH',     // Phản Hồi (Feedback)
+  asignments: 'BT',    // Bài Tập (Assignment - note: table name has typo 'asignments')
+  assignments: 'BT',   // Bài Tập (Assignment - alternative spelling)
 } as const;
 
 type TableName = keyof typeof ID_PREFIXES;

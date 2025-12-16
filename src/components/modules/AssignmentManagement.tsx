@@ -66,6 +66,8 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
   console.log('🔑 [AssignmentManagement] user.role:', user.role);
   console.log('👨‍🏫 [AssignmentManagement] isTeacher:', isTeacher);
   console.log('👨‍🎓 [AssignmentManagement] isStudent:', isStudent);
+  console.log('🆔 [AssignmentManagement] user.teacherId:', user.teacherId);
+  console.log('🆔 [AssignmentManagement] user.studentId:', user.studentId);
 
   useEffect(() => {
     loadData();
@@ -107,6 +109,29 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
   const handleCreateAssignment = async (assignmentData: any) => {
     try {
       console.log('📝 [AssignmentManagement] Creating assignment:', assignmentData);
+      console.log('👤 [AssignmentManagement] Current user:', user);
+      console.log('🆔 [AssignmentManagement] user.teacherId:', user.teacherId);
+      
+      // ✅ Validate that user is teacher and has teacherId
+      if (!isTeacher || !user.teacherId) {
+        console.error('❌ [AssignmentManagement] User is not a teacher or missing teacherId');
+        console.error('❌ [AssignmentManagement] isTeacher:', isTeacher);
+        console.error('❌ [AssignmentManagement] user.teacherId:', user.teacherId);
+        alert('Chỉ giáo viên mới có thể tạo bài tập');
+        return;
+      }
+      
+      // Prepare payload
+      const payload = {
+        title: assignmentData.title,
+        description: assignmentData.description,
+        classId: assignmentData.classId,
+        dueDate: assignmentData.dueDate,
+        fileUrl: assignmentData.fileUrl || null,
+        createdBy: user.teacherId // Teacher ID (GV001) not User ID (US001)
+      };
+      
+      console.log('📤 [AssignmentManagement] Sending payload:', payload);
       
       // Call API to create assignment
       const response = await fetch(`${API_BASE}/assignments`, {
@@ -115,14 +140,7 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`
         },
-        body: JSON.stringify({
-          title: assignmentData.title,
-          description: assignmentData.description,
-          classId: assignmentData.classId,
-          dueDate: assignmentData.dueDate,
-          fileUrl: assignmentData.fileUrl || null,
-          createdBy: user.id // User ID from logged in user
-        })
+        body: JSON.stringify(payload)
       });
       
       if (response.ok) {
@@ -131,10 +149,13 @@ export default function AssignmentManagement({ user }: AssignmentManagementProps
         await loadData();
         setShowCreateModal(false);
       } else {
-        console.error('❌ [AssignmentManagement] Failed to create assignment');
+        const errorData = await response.json();
+        console.error('❌ [AssignmentManagement] Failed to create assignment:', errorData);
+        alert(errorData.error || 'Không thể tạo bài tập');
       }
     } catch (error) {
       console.error('❌ [AssignmentManagement] Error creating assignment:', error);
+      alert('Có lỗi xảy ra khi tạo bài tập');
     }
   };
 
@@ -308,10 +329,12 @@ function CreateAssignmentModal({ onClose, onCreate, userName }: {
         });
         if (response.ok) {
           const data = await response.json();
-          setClasses(data);
+          // ✅ FIX: Unwrap the classes array from response
+          setClasses(data.classes || data || []);
         }
       } catch (error) {
         console.error('Error loading classes:', error);
+        setClasses([]); // ✅ Set empty array on error
       }
     };
     loadClasses();
